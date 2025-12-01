@@ -2,8 +2,10 @@ import pygame
 import random
 import os
 
+#test push 2
+
 # --- 1. Game Constants / Einstellungen ---
-SCREEN_WIDTH = 500
+SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 700
 FPS = 60
 PIPE_GAP = 150  # Lücke zwischen oberem und unterem Rohr
