@@ -141,7 +141,7 @@ class GameWorld:
         self.day_night_cycle = 1800  # 30s
         self.is_night = False
 
-        self.font = pygame.font.Font('freesansbold.ttf', 40)
+        self.font = pygame.font.Font('BoldPixels.ttf', 40)
         self.high_score = 0
         self.scored_pipe_x = SCREEN_WIDTH + 100
         self.game_started = False
