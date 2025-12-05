@@ -14,6 +14,7 @@ BIRD_JUMP = -10
 # Asset-Pfade
 ASSET_DIR = 'assets'
 BG_IMG = os.path.join(ASSET_DIR, 'background_day.png')
+BG_NIGHT_IMG = os.path.join(ASSET_DIR, 'background_night.png')  # G NEU
 GROUND_IMG = os.path.join(ASSET_DIR, 'ground.png')
 BIRD_FRAMES = [
     os.path.join(ASSET_DIR, 'bee_frame1.png'),
@@ -21,7 +22,7 @@ BIRD_FRAMES = [
     os.path.join(ASSET_DIR, 'bee_frame3.png')
 ]
 PIPE_IMG = os.path.join(ASSET_DIR, 'pipe.png')
-GAME_OVER_IMG = os.path.join(ASSET_DIR, 'gameover.png')  # aktuell noch unbenutzt
+GAME_OVER_IMG = os.path.join(ASSET_DIR, 'gameover.png')
 
 # --- 2. Pygame Initialisierung ---
 pygame.init()
@@ -31,9 +32,13 @@ clock = pygame.time.Clock()
 
 # Laden der Assets
 try:
-    # Hintergrund & Boden skalieren
+    # Hintergründe laden (G)
     BG = pygame.transform.scale(
         pygame.image.load(BG_IMG).convert(),
+        (SCREEN_WIDTH, SCREEN_HEIGHT)
+    )
+    BG_NIGHT = pygame.transform.scale(
+        pygame.image.load(BG_NIGHT_IMG).convert(),
         (SCREEN_WIDTH, SCREEN_HEIGHT)
     )
     GROUND = pygame.transform.scale(
@@ -42,17 +47,33 @@ try:
     )
     PIPE_IMAGE = pygame.image.load(PIPE_IMG).convert_alpha()
     BIRD_IMAGES = [pygame.image.load(f).convert_alpha() for f in BIRD_FRAMES]
-    # Biene ggf. verkleinern
     BIRD_IMAGES = [pygame.transform.scale(img, (40, 30)) for img in BIRD_IMAGES]
 except pygame.error as e:
     print(
         f"Fehler beim Laden von Assets. Stelle sicher, dass der Ordner '{ASSET_DIR}' "
-        f"existiert und die Dateien vorhanden sind."
+        f"existiert und die Dateien vorhanden sind (background_night.png benötigt)."
     )
     pygame.quit()
     exit()
 
-# --- 3. Klassen-Definitionen ---
+# --- 3. PowerUp Klasse (NEU) ---
+class PowerUp(pygame.sprite.Sprite):
+    def __init__(self, x, y, power_type="shield"):
+        super().__init__()
+        self.type = power_type
+        self.image = pygame.Surface((30, 30), pygame.SRCALPHA)
+        if power_type == "speed":
+            pygame.draw.circle(self.image, (255, 215, 0), (15, 15), 15)  # Gold
+        else:  # shield
+            pygame.draw.rect(self.image, (0, 255, 0), (5, 5, 20, 20))  # Grün
+        self.rect = self.image.get_rect(center=(x, y))
+    
+    def update(self):
+        self.rect.x -= PIPE_SPEED
+        if self.rect.right < 0:
+            self.kill()
+
+# --- 4. Klassen-Definitionen ---
 
 class Bird(pygame.sprite.Sprite):
     def __init__(self):
@@ -65,17 +86,12 @@ class Bird(pygame.sprite.Sprite):
         self.animation_counter = 0
 
     def update(self):
-        # 3.1. Gravitation
         self.velocity += GRAVITY
         self.rect.y += int(self.velocity)
-
-        # 3.2. Animation (Flügelschlag)
         self.animation_counter += 1
-        if self.animation_counter >= 5:  # Wechselt den Frame alle 5 Loops
+        if self.animation_counter >= 5:
             self.animation_counter = 0
             self.index = (self.index + 1) % len(self.images)
-
-        # 3.3. Rotation (Nicken)
         angle = max(-30, min(90, self.velocity * 3))
         self.image = pygame.transform.rotate(self.images[self.index], angle * -1)
         self.rect = self.image.get_rect(center=self.rect.center)
@@ -83,35 +99,31 @@ class Bird(pygame.sprite.Sprite):
     def jump(self):
         self.velocity = BIRD_JUMP
 
-
 class Pipe(pygame.sprite.Sprite):
     def __init__(self, x_pos, height, inverted=False):
         super().__init__()
         self.image = PIPE_IMAGE
         self.rect = self.image.get_rect()
-        self.inverted = inverted      # Obere oder untere Pipe?
-        self.passed = False           # Für Score-Berechnung
+        self.inverted = inverted
+        self.passed = False
 
         if inverted:
-            # Oberes Rohr
             self.image = pygame.transform.flip(self.image, False, True)
             self.rect.bottomleft = [x_pos, height]
         else:
-            # Unteres Rohr
             self.rect.topleft = [x_pos, height]
 
     def update(self):
         self.rect.x -= PIPE_SPEED
-        # Entfernt das Rohr, wenn es außerhalb des Bildschirms ist
         if self.rect.right < 0:
             self.kill()
-
 
 class GameWorld:
     def __init__(self):
         self.bird = Bird()
         self.all_sprites = pygame.sprite.Group()
         self.pipe_group = pygame.sprite.Group()
+        self.powerup_group = pygame.sprite.Group()  # A NEU
         self.all_sprites.add(self.bird)
 
         self.ground_y = SCREEN_HEIGHT - 100
@@ -119,18 +131,32 @@ class GameWorld:
         self.score = 0
         self.game_active = False
         self.time_since_last_pipe = 0
-        self.pipe_frequency = 1500  # Neue Rohre alle 1500ms (1.5 Sekunden)
+        self.pipe_frequency = 1500
+
+        # PowerUp-System (A)
+        self.powerup_active = None  # {"type": "shield", "duration": 300}
+        
+        # Day/Night-System (H)
+        self.game_time = 0
+        self.day_night_cycle = 1800  # 30s
+        self.is_night = False
 
         self.font = pygame.font.Font('freesansbold.ttf', 40)
         self.high_score = 0
-        self.scored_pipe_x = SCREEN_WIDTH + 100  # aktuell unbenutzt
-        self.game_started = False  # Schon mindestens einmal gespielt?
+        self.scored_pipe_x = SCREEN_WIDTH + 100
+        self.game_started = False
 
     def draw_background(self):
-        screen.blit(BG, (0, 0))
+        # I NEU: Dynamischer Hintergrund
+        bg = BG_NIGHT if self.is_night else BG
+        screen.blit(bg, (0, 0))
+        if self.is_night:
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+            overlay.set_alpha(100)
+            overlay.fill((20, 20, 40))
+            screen.blit(overlay, (0, 0))
 
     def draw_ground(self):
-        # Scrollender Boden
         screen.blit(GROUND, (self.ground_scroll, self.ground_y))
         screen.blit(GROUND, (self.ground_scroll + SCREEN_WIDTH * 2, self.ground_y))
         self.ground_scroll -= PIPE_SPEED
@@ -143,54 +169,70 @@ class GameWorld:
         screen.blit(text_surface, text_rect)
 
     def draw_game_over_screen(self):
-        # Halbtransparenter Kasten in der Mitte
         overlay_width, overlay_height = 500, 300
         overlay = pygame.Surface((overlay_width, overlay_height))
-        overlay.set_alpha(200)  # Transparenz
+        overlay.set_alpha(200)
         overlay.fill((0, 0, 0))
         overlay_rect = overlay.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
         screen.blit(overlay, overlay_rect)
-
-        # Texte (vertikal verteilt)
         self.draw_text("GAME OVER", overlay_rect.top + 60, (255, 0, 0))
         self.draw_text(f"SCORE: {self.score}", overlay_rect.top + 130, (255, 255, 255))
         self.draw_text(f"HIGHSCORE: {self.high_score}", overlay_rect.top + 190, (255, 255, 255))
         self.draw_text("Drücke Leertaste für Neustart", overlay_rect.top + 250, (255, 255, 0))
 
     def check_collisions(self):
-        # Kollision mit Rohren
+        # D NEU: Schild schützt
+        if self.powerup_active and self.powerup_active["type"] == "shield":
+            return False
+        
         if pygame.sprite.spritecollide(self.bird, self.pipe_group, False):
             return True
-
-        # Kollision mit Boden oder Decke
         if self.bird.rect.bottom > self.ground_y or self.bird.rect.top < -50:
             return True
-
         return False
 
+    def check_powerups(self):  # B NEU
+        hit = pygame.sprite.spritecollide(self.bird, self.powerup_group, True)
+        if hit:
+            self.powerup_active = {"type": hit[0].type, "duration": 300}
+        
+        if self.powerup_active:
+            self.powerup_active["duration"] -= 1
+            if self.powerup_active["duration"] <= 0:
+                self.powerup_active = None
+
+    def update_day_night(self):  # J NEU
+        self.game_time += 1
+        if self.game_time % self.day_night_cycle == 0:
+            self.is_night = not self.is_night
+            # Nacht = schwieriger (schnellere Pipes)
+            global PIPE_SPEED
+            PIPE_SPEED = 5 if self.is_night else 4
+
     def generate_pipe(self):
-        # Zufällige Höhe für die Lücke
         min_height = 150
         max_height = self.ground_y - PIPE_GAP - 50
         pipe_height = random.randint(min_height, max_height)
 
-        # Oberes Rohr
         top_pipe = Pipe(SCREEN_WIDTH, pipe_height, inverted=True)
-        # Unteres Rohr
         bottom_pipe = Pipe(SCREEN_WIDTH, pipe_height + PIPE_GAP, inverted=False)
 
         self.pipe_group.add(top_pipe, bottom_pipe)
         self.all_sprites.add(top_pipe, bottom_pipe)
 
-        # (scored_pipe_x wird aktuell nicht mehr genutzt, kann entfernt werden)
+        # C NEU: PowerUp zwischen Rohren (8% Chance)
+        if random.random() < 0.08:
+            pu_y = pipe_height + PIPE_GAP//2 + random.randint(-50, 50)
+            pu_type = random.choice(["shield", "speed"])
+            pu = PowerUp(SCREEN_WIDTH + 50, pu_y, pu_type)
+            self.powerup_group.add(pu)
+            self.all_sprites.add(pu)
+
         self.scored_pipe_x = SCREEN_WIDTH + PIPE_IMAGE.get_width()
 
     def update_score(self):
-        # Für jede Pipe prüfen, ob die Biene daran vorbeigeflogen ist
         for pipe in self.pipe_group:
-            # Nur untere Rohre zählen (inverted == False)
             if not pipe.inverted and not pipe.passed:
-                # Biene komplett an der Pipe vorbei?
                 if self.bird.rect.left > pipe.rect.right:
                     pipe.passed = True
                     self.score += 1
@@ -201,76 +243,71 @@ class GameWorld:
         self.bird = Bird()
         self.all_sprites = pygame.sprite.Group()
         self.pipe_group = pygame.sprite.Group()
+        self.powerup_group = pygame.sprite.Group()  # Reset PowerUps
         self.all_sprites.add(self.bird)
         self.score = 0
         self.time_since_last_pipe = 0
         self.scored_pipe_x = SCREEN_WIDTH + 100
-        # high_score & game_started bleiben bestehen
+        self.powerup_active = None  # Reset PowerUp
+        self.game_time = 0  # Reset Day/Night
+        self.is_night = False
 
-
-# --- 4. Main Game Loop ---
-
+# --- 5. Main Game Loop ---
 game = GameWorld()
 running = True
 
 while running:
-    # Event-Handling
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 if game.game_active:
                     game.bird.jump()
                 else:
-                    # Startet das Spiel, wenn die Leertaste im Start/Game-Over-Screen gedrückt wird
                     game.reset_game()
                     game.game_active = True
-                    game.game_started = True  # Ab jetzt wissen wir: es wurde schon gespielt
+                    game.game_started = True
+        if game.game_active and event.type == pygame.USEREVENT + 1:
+            game.generate_pipe()
 
-        # Automatisches Rohr-Generieren
-        if game.game_active:
-            if event.type == pygame.USEREVENT + 1:
-                game.generate_pipe()
-
-    # --- SPIEL LOGIK ---
     if game.game_active:
-        # Rohr-Timer (wird nur einmal nach Spielstart gesetzt)
         if game.time_since_last_pipe == 0:
             pygame.time.set_timer(pygame.USEREVENT + 1, game.pipe_frequency)
-            game.time_since_last_pipe = 1  # Setzt einen Wert ungleich Null
+            game.time_since_last_pipe = 1
 
         game.all_sprites.update()
-
+        
         if game.check_collisions():
             game.game_active = False
-            pygame.time.set_timer(pygame.USEREVENT + 1, 0)  # Stoppt den Rohr-Timer
-
+            pygame.time.set_timer(pygame.USEREVENT + 1, 0)
+        
         game.update_score()
+        game.check_powerups()  # F
+        game.update_day_night()  # J
 
-    # --- RENDERING ---
+    # RENDERING
     game.draw_background()
 
     if game.game_active:
         game.pipe_group.draw(screen)
+        game.powerup_group.draw(screen)  # E NEU
         game.all_sprites.draw(screen)
-        # Aktueller Punktestand oben
-        game.draw_text(str(game.score), 50, (0, 0, 0))
+        game.draw_text(str(game.score), 50, (255, 255, 255))  # Weiß für Kontrast
+        
+        # PowerUp-Indikator
+        if game.powerup_active:
+            color = (0, 255, 0) if game.powerup_active["type"] == "shield" else (255, 215, 0)
+            game.draw_text(game.powerup_active["type"].upper(), 100, color)
+
     else:
-        # Start-/Game-Over-Screen
         if not game.game_started:
-            # Noch nie gespielt → Startscreen
             game.draw_text("FLAPPY BEE", SCREEN_HEIGHT // 3, (255, 255, 0))
             game.draw_text("Drücke Leertaste zum Start", SCREEN_HEIGHT // 2, (255, 255, 255))
         else:
-            # Schon gespielt → immer Game-Over-Screen (auch bei Score 0)
             game.draw_game_over_screen()
 
-    # Boden wird immer zuletzt gezeichnet
     game.draw_ground()
-
-    # Update des gesamten Bildschirms
     pygame.display.update()
     clock.tick(FPS)
 
