@@ -3,10 +3,10 @@ import random
 import os
 
 # --- 1. Game Constants / Einstellungen ---
-SCREEN_WIDTH = 1600
+SCREEN_WIDTH = 600
 SCREEN_HEIGHT = 800
 FPS = 60
-PIPE_GAP = 150   # Lücke zwischen oberem und unterem Rohr
+PIPE_GAP = 200   # Lücke zwischen oberem und unterem Rohr
 PIPE_SPEED = 4
 GRAVITY = 0.5
 BIRD_JUMP = -10
