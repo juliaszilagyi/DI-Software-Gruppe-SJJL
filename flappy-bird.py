@@ -1,38 +1,46 @@
-import pygame
-import random
-import os
+import pygame # Importiert die Pygame-Bibliothek für Spieleentwicklung
+import random # Importiert das Random-Modul für Zufallszahlen (z.B. für Rohr-Höhen)
+import os # Importiert das OS-Modul für die Interaktion mit dem Betriebssystem (z.B. Dateipfade)
 
 # --- 1. Game Constants / Einstellungen ---
-SCREEN_WIDTH = 600
-SCREEN_HEIGHT = 800
-FPS = 60
-PIPE_GAP = 200   # Lücke zwischen oberem und unterem Rohr
-PIPE_SPEED = 4
-GRAVITY = 0.5
-BIRD_JUMP = -10
+SCREEN_WIDTH = 600 # Definiert die Breite des Spielfensters in Pixeln
+SCREEN_HEIGHT = 800 # Definiert die Höhe des Spielfensters in Pixeln
+FPS = 60 # Frames per Second (Bildwiederholrate) – wie oft die Spiel-Logik pro Sekunde aktualisiert wird
+PIPE_GAP = 200 # Lücke zwischen oberem und unterem Rohr in Pixeln
+PIPE_SPEED = 4 # Geschwindigkeit, mit der sich die Rohre (und der Boden) nach links bewegen
+GRAVITY = 0.5 # Stärke der Schwerkraft, die auf den Vogel wirkt
+BIRD_JUMP = -10 # Vertikale Geschwindigkeit (nach oben), die der Vogel beim Springen erhält
 
 # Asset-Pfade
-ASSET_DIR = 'assets'
-BG_IMG = os.path.join(ASSET_DIR, 'background_day.png')
-BG_NIGHT_IMG = os.path.join(ASSET_DIR, 'background_night.png')  # G NEU
-GROUND_IMG = os.path.join(ASSET_DIR, 'ground.png')
-BIRD_FRAMES = [
+ASSET_DIR = 'assets' # Definiert den Namen des Ordners, in dem die Spiel-Bilder liegen
+BG_IMG = os.path.join(ASSET_DIR, 'background_day.png') # Pfad zum Bild des Tag-Hintergrunds
+BG_NIGHT_IMG = os.path.join(ASSET_DIR, 'background_night.png') # Pfad zum Bild des Nacht-Hintergrunds (G NEU)
+GROUND_IMG = os.path.join(ASSET_DIR, 'ground.png') # Pfad zum Bild des Bodens
+BIRD_FRAMES = [ # Liste der Pfade für die Animations-Frames des Vogels (Biene)
     os.path.join(ASSET_DIR, 'bee_frame1.png'),
     os.path.join(ASSET_DIR, 'bee_frame2.png'),
     os.path.join(ASSET_DIR, 'bee_frame3.png')
 ]
-PIPE_IMG = os.path.join(ASSET_DIR, 'pipe.png')
+# NEU: Liste der Pfade für die verschiedenen Rohr-Bilder
+PIPE_FILES = [
+    os.path.join(ASSET_DIR, 'pipe.png'),
+    os.path.join(ASSET_DIR, 'pipe (2).png'),
+    os.path.join(ASSET_DIR, 'pipe (3).png')
+]
 GAME_OVER_IMG = os.path.join(ASSET_DIR, 'gameover.png')
 
+# Globale Variable für die geladenen Pipe-Bilder
+PIPE_IMAGES = [] # NEU: Wird nun eine Liste aller geladenen Pipe-Images enthalten
+
 # --- 2. Pygame Initialisierung ---
-pygame.init()
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption('Flappy Bee')
-clock = pygame.time.Clock()
+pygame.init() # Initialisiert alle notwendigen Pygame-Module
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT)) # Erstellt das Spielfenster mit definierter Größe
+pygame.display.set_caption('Flappy Bee') # Setzt den Titel des Spielfensters
+clock = pygame.time.Clock() # Erstellt ein Clock-Objekt zur Steuerung der Bildrate
 
 # Laden der Assets
 try:
-    # Hintergründe laden (G)
+    # ... (Hintergründe und Boden laden) ...
     BG = pygame.transform.scale(
         pygame.image.load(BG_IMG).convert(),
         (SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -45,16 +53,22 @@ try:
         pygame.image.load(GROUND_IMG).convert_alpha(),
         (SCREEN_WIDTH * 2, 100)
     )
-    PIPE_IMAGE = pygame.image.load(PIPE_IMG).convert_alpha()
+    # NEU: Alle Rohr-Bilder laden und in der globalen Liste speichern
+    for pipe_file in PIPE_FILES:
+        image = pygame.image.load(pipe_file).convert_alpha()
+        PIPE_IMAGES.append(image)
+
+    # ... (Vogel-Bilder laden) ...
     BIRD_IMAGES = [pygame.image.load(f).convert_alpha() for f in BIRD_FRAMES]
-    BIRD_IMAGES = [pygame.transform.scale(img, (40, 30)) for img in BIRD_IMAGES]
+    BIRD_IMAGES = [pygame.transform.scale(img, (60, 40)) for img in BIRD_IMAGES]
 except pygame.error as e:
+    # Fängt Fehler ab, falls ein Asset nicht geladen werden kann
     print(
         f"Fehler beim Laden von Assets. Stelle sicher, dass der Ordner '{ASSET_DIR}' "
-        f"existiert und die Dateien vorhanden sind (background_night.png benötigt)."
+        f"existiert und die Dateien vorhanden sind (pipe.png, pipe (2).png, pipe (3).png benötigt)."
     )
-    pygame.quit()
-    exit()
+    pygame.quit() # Beendet Pygame
+    exit() # Beendet das gesamte Programm
 
 # --- 3. PowerUp Klasse (NEU) ---
 class PowerUp(pygame.sprite.Sprite):
@@ -63,9 +77,9 @@ class PowerUp(pygame.sprite.Sprite):
         self.type = power_type
         self.image = pygame.Surface((30, 30), pygame.SRCALPHA)
         if power_type == "speed":
-            pygame.draw.circle(self.image, (255, 215, 0), (15, 15), 15)  # Gold
-        else:  # shield
-            pygame.draw.rect(self.image, (0, 255, 0), (5, 5, 20, 20))  # Grün
+            pygame.draw.circle(self.image, (255, 215, 0), (15, 15), 15)
+        else:
+            pygame.draw.rect(self.image, (0, 255, 0), (5, 5, 20, 20))
         self.rect = self.image.get_rect(center=(x, y))
     
     def update(self):
@@ -88,10 +102,12 @@ class Bird(pygame.sprite.Sprite):
     def update(self):
         self.velocity += GRAVITY
         self.rect.y += int(self.velocity)
+        
         self.animation_counter += 1
         if self.animation_counter >= 5:
             self.animation_counter = 0
             self.index = (self.index + 1) % len(self.images)
+        
         angle = max(-30, min(90, self.velocity * 3))
         self.image = pygame.transform.rotate(self.images[self.index], angle * -1)
         self.rect = self.image.get_rect(center=self.rect.center)
@@ -100,14 +116,17 @@ class Bird(pygame.sprite.Sprite):
         self.velocity = BIRD_JUMP
 
 class Pipe(pygame.sprite.Sprite):
-    def __init__(self, x_pos, height, inverted=False):
+    # ANPASSUNG: Optionaler Parameter pipe_image, um das Bild zu übergeben
+    def __init__(self, x_pos, height, inverted=False, pipe_image=None):
         super().__init__()
-        self.image = PIPE_IMAGE
+        # Wählt das übergebene Bild, oder nimmt das erste Bild in der globalen Liste als Fallback
+        self.image = pipe_image if pipe_image is not None else PIPE_IMAGES[0]
         self.rect = self.image.get_rect()
         self.inverted = inverted
         self.passed = False
 
         if inverted:
+            # Spiegelt das Bild vertikal
             self.image = pygame.transform.flip(self.image, False, True)
             self.rect.bottomleft = [x_pos, height]
         else:
@@ -123,7 +142,7 @@ class GameWorld:
         self.bird = Bird()
         self.all_sprites = pygame.sprite.Group()
         self.pipe_group = pygame.sprite.Group()
-        self.powerup_group = pygame.sprite.Group()  # A NEU
+        self.powerup_group = pygame.sprite.Group()
         self.all_sprites.add(self.bird)
 
         self.ground_y = SCREEN_HEIGHT - 100
@@ -133,21 +152,22 @@ class GameWorld:
         self.time_since_last_pipe = 0
         self.pipe_frequency = 1500
 
-        # PowerUp-System (A)
-        self.powerup_active = None  # {"type": "shield", "duration": 300}
+        self.powerup_active = None
         
-        # Day/Night-System (H)
         self.game_time = 0
-        self.day_night_cycle = 1800  # 30s
+        self.day_night_cycle = 1800
         self.is_night = False
 
         self.font = pygame.font.Font('BoldPixels.ttf', 40)
         self.high_score = 0
-        self.scored_pipe_x = SCREEN_WIDTH + 100
+        
+        # ANPASSUNG: Größe des Rohres wird nun aus dem ECHTEN Bild ausgelesen
+        self.pipe_width = PIPE_IMAGES[0].get_width()
+        self.scored_pipe_x = SCREEN_WIDTH + self.pipe_width
         self.game_started = False
 
+    # ... (draw_background, draw_ground, draw_text, draw_game_over_screen Methoden bleiben gleich) ...
     def draw_background(self):
-        # I NEU: Dynamischer Hintergrund
         bg = BG_NIGHT if self.is_night else BG
         screen.blit(bg, (0, 0))
         if self.is_night:
@@ -181,41 +201,45 @@ class GameWorld:
         self.draw_text("Drücke Leertaste für Neustart", overlay_rect.top + 250, (255, 255, 0))
 
     def check_collisions(self):
-        # D NEU: Schild schützt
         if self.powerup_active and self.powerup_active["type"] == "shield":
             return False
-        
+            
         if pygame.sprite.spritecollide(self.bird, self.pipe_group, False):
             return True
         if self.bird.rect.bottom > self.ground_y or self.bird.rect.top < -50:
             return True
         return False
 
-    def check_powerups(self):  # B NEU
+    def check_powerups(self):
         hit = pygame.sprite.spritecollide(self.bird, self.powerup_group, True)
         if hit:
             self.powerup_active = {"type": hit[0].type, "duration": 300}
-        
+            
         if self.powerup_active:
             self.powerup_active["duration"] -= 1
             if self.powerup_active["duration"] <= 0:
                 self.powerup_active = None
 
-    def update_day_night(self):  # J NEU
+    def update_day_night(self):
         self.game_time += 1
         if self.game_time % self.day_night_cycle == 0:
             self.is_night = not self.is_night
-            # Nacht = schwieriger (schnellere Pipes)
             global PIPE_SPEED
             PIPE_SPEED = 5 if self.is_night else 4
 
     def generate_pipe(self):
+        # NEU: Wählt zufällig eines der geladenen Rohr-Bilder
+        random_pipe_image = random.choice(PIPE_IMAGES)
+        # ANPASSUNG: Die Breite des aktuellen Rohres verwenden
+        self.pipe_width = random_pipe_image.get_width()
+        
         min_height = 150
         max_height = self.ground_y - PIPE_GAP - 50
         pipe_height = random.randint(min_height, max_height)
 
-        top_pipe = Pipe(SCREEN_WIDTH, pipe_height, inverted=True)
-        bottom_pipe = Pipe(SCREEN_WIDTH, pipe_height + PIPE_GAP, inverted=False)
+        # Erzeugt die Rohre und übergibt das zufällig gewählte Bild
+        top_pipe = Pipe(SCREEN_WIDTH, pipe_height, inverted=True, pipe_image=random_pipe_image)
+        bottom_pipe = Pipe(SCREEN_WIDTH, pipe_height + PIPE_GAP, inverted=False, pipe_image=random_pipe_image)
 
         self.pipe_group.add(top_pipe, bottom_pipe)
         self.all_sprites.add(top_pipe, bottom_pipe)
@@ -228,7 +252,8 @@ class GameWorld:
             self.powerup_group.add(pu)
             self.all_sprites.add(pu)
 
-        self.scored_pipe_x = SCREEN_WIDTH + PIPE_IMAGE.get_width()
+        # Setzt die X-Position, ab der das nächste Rohr erzeugt werden könnte (basierend auf der Breite des aktuellen Rohres)
+        self.scored_pipe_x = SCREEN_WIDTH + self.pipe_width
 
     def update_score(self):
         for pipe in self.pipe_group:
@@ -243,20 +268,28 @@ class GameWorld:
         self.bird = Bird()
         self.all_sprites = pygame.sprite.Group()
         self.pipe_group = pygame.sprite.Group()
-        self.powerup_group = pygame.sprite.Group()  # Reset PowerUps
+        self.powerup_group = pygame.sprite.Group()
         self.all_sprites.add(self.bird)
         self.score = 0
         self.time_since_last_pipe = 0
-        self.scored_pipe_x = SCREEN_WIDTH + 100
-        self.powerup_active = None  # Reset PowerUp
-        self.game_time = 0  # Reset Day/Night
+        # ANPASSUNG: Die Pipe-Breite sollte aus den global geladenen Bildern genommen werden
+        self.pipe_width = PIPE_IMAGES[0].get_width()
+        self.scored_pipe_x = SCREEN_WIDTH + self.pipe_width
+        self.powerup_active = None
+        self.game_time = 0
         self.is_night = False
+        global PIPE_SPEED
+        PIPE_SPEED = 4
 
 # --- 5. Main Game Loop ---
 game = GameWorld()
 running = True
 
+# Setzt einen Timer für das Erzeugen von Rohren
+pygame.time.set_timer(pygame.USEREVENT + 1, game.pipe_frequency)
+
 while running:
+    # Event-Verarbeitung
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -268,6 +301,8 @@ while running:
                     game.reset_game()
                     game.game_active = True
                     game.game_started = True
+        
+        # Rohr-Erzeugung (ausgelöst durch den Pygame-Timer)
         if game.game_active and event.type == pygame.USEREVENT + 1:
             game.generate_pipe()
 
@@ -281,21 +316,20 @@ while running:
         if game.check_collisions():
             game.game_active = False
             pygame.time.set_timer(pygame.USEREVENT + 1, 0)
-        
+            
         game.update_score()
-        game.check_powerups()  # F
-        game.update_day_night()  # J
+        game.check_powerups()
+        game.update_day_night()
 
     # RENDERING
     game.draw_background()
 
     if game.game_active:
         game.pipe_group.draw(screen)
-        game.powerup_group.draw(screen)  # E NEU
+        game.powerup_group.draw(screen)
         game.all_sprites.draw(screen)
-        game.draw_text(str(game.score), 50, (255, 255, 255))  # Weiß für Kontrast
+        game.draw_text(str(game.score), 50, (255, 255, 255))
         
-        # PowerUp-Indikator
         if game.powerup_active:
             color = (0, 255, 0) if game.powerup_active["type"] == "shield" else (255, 215, 0)
             game.draw_text(game.powerup_active["type"].upper(), 100, color)
