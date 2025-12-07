@@ -1,6 +1,6 @@
 
 # Bubble Popper
-## DI-Software-Gruppe-SJJL // pair1SL
+## DI-Software-Gruppe-SJJL // pair1SJ
 
 
 ## Überblick
