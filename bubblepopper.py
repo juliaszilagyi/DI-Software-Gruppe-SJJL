@@ -1,17 +1,41 @@
 # ---------- DI-Software-Gruppe-SJJL // pair1SL ----------
-# ---------- Straub Sarah, SZILÁGYI Júlia ----------
+# ---------- Straub Sarah, Julia Szilagyi ----------
 
-#still to be done: now the meteors (red bubbles are pictures and cant change the size
-#also the scoring is now messy, will check with different shapes tomorrow
-#
+#fixed scoring, size of meteorides and fuel tanks, added twinkling stars to background
+#changed sound on off to icon, renamed bubble popper to Spaceship Sprint
+#changed time count to a bar
+#made a differentiation, collecting stars will increase score, collecting fuel will increase time
+#the smaller the star the more points it gives, the smaller the fuel the more time ti adds
+#the larger the meteor the more time it reduces
+#added best score so far
+#made main screen and exit screen "prettier"
+#all bubbles movee behind the score bar
+#-added a story! After 200, 500, 800, and 1500 points they reach a new planet
+
+
+
+#still to be done:
+#-fix collision radius
+#-make the main screen prettier (add instructions?)
+#-make exit screen prettier
+#adjust read.me
+#-make pause screen prettier
+#-cooler space font type
+#-add restart game or back to menu
+
+
 
 # ---------- main_bubblepopper.py ----------
 
 
 from tkinter import *
+import tkinter as tk
+from tkinter import font
 import pygame
 from random import randint, random
+from random import randint, sample
 from math import sqrt
+import math
 
 # ---------- Window / Canvas ----------
 
@@ -21,7 +45,7 @@ WIDTH = 800
 
 # Create window
 window = Tk()
-window.title("Bubble Popper")
+window.title("Spaceship Sprint")
 
 # Canvas for drawing
 canvas = Canvas(window, width=WIDTH, height=HEIGHT, bg='black')
@@ -38,9 +62,23 @@ def create_starry_background(num_stars=150):
         r = randint(1, 2)  # tiny radius for small stars
         star = canvas.create_oval(x-r, y-r, x+r, y+r, fill='white', outline='')
         star_ids.append(star)
+        
+def twinkle_stars():
+    # Only twinkle 10–20 random stars each tick
+    num_to_twinkle = 15
+    stars_to_twinkle = sample(star_ids, num_to_twinkle)
+    
+    for star in stars_to_twinkle:
+        brightness = randint(120, 255)  # random white intensity
+        hex_color = f"#{brightness:02x}{brightness:02x}{brightness:02x}"
+        canvas.itemconfig(star, fill=hex_color)
+    
+    # Schedule next twinkle
+    window.after(120, twinkle_stars)
 
 # Generate stars once at the beginning
 create_starry_background()
+twinkle_stars()
 
 
 # ---------- Game States ----------
@@ -52,7 +90,12 @@ GAME_OVER = 'GAME_OVER'
 
 state = MENU
 
-# ---------- Music -----------
+# --------- Font type ----------
+
+from tkinter import font
+
+
+# ---------- Sounds -----------
 pygame.mixer.init()
 sound_on = True  # sound starts on
 
@@ -61,8 +104,15 @@ sound_green = pygame.mixer.Sound("green_sound.mp3")  # positive bubble
 sound_red = pygame.mixer.Sound("red_sound.wav")      # negative bubble
 pygame.mixer.music.load("background.ogg")            # background music
 pygame.mixer.music.set_volume(0.3)                   # adjust volume (0.0 to 1.0)
-sound_game_over = pygame.mixer.Sound("game_over.mp3")# game over sounf
+sound_game_over = pygame.mixer.Sound("game_over.mp3")# game over sound
+sound_clap = pygame.mixer.Sound("clap.ogg") 		 # clap congratulations sound
 
+
+def play_sound(sound):
+    if sound_on:
+        sound.play()
+    else:
+        sound.stop()
 
 # Start/Stop background music
 def start_music():
@@ -73,14 +123,14 @@ def stop_music():
     
 def toggle_sound():
     global sound_on
+    sound_on = not sound_on
     if sound_on:
-        pygame.mixer.music.pause()
-        sound_on = False
-        canvas.itemconfig(sound_btn_text, text="Sound: OFF")
-    else:
         pygame.mixer.music.unpause()
-        sound_on = True
-        canvas.itemconfig(sound_btn_text, text="Sound: ON")
+        canvas.itemconfig(sound_btn_img, image=sound_on_img)
+    else:
+        pygame.mixer.music.pause()
+        sound_game_over.stop()  # stop game over sound if playing
+        canvas.itemconfig(sound_btn_img, image=sound_off_img)
 
 #Images
 from PIL import Image, ImageTk
@@ -91,30 +141,53 @@ rocket_resized = rocket_orig.resize((50, 30))  # width, height in pixels
 rocket_img = ImageTk.PhotoImage(rocket_resized)
 
 fuel_orig = Image.open("fuel.png")
-fuel_resized = fuel_orig.resize((20, 30))
+fuel_resized = fuel_orig.resize((20, 28))
 fuel_img = ImageTk.PhotoImage(fuel_resized)
+
+star_orig = Image.open("star.png")
+star_resized = star_orig.resize((20, 20))
+star_img = ImageTk.PhotoImage(star_resized)
 
 meteor_orig = Image.open("meteorite.png")
 meteor_resized = meteor_orig.resize((50, 50))
 meteor_img = ImageTk.PhotoImage(meteor_resized)
 
-# ---------- Player's Ship ----------
+sound_on_orig = Image.open("sound_on.png")
+sound_on_resized = sound_on_orig.resize((15, 15))  
+sound_on_img = ImageTk.PhotoImage(sound_on_resized)
 
-SHIP_RADIUS = 15
+sound_off_orig = Image.open("sound_off.png")
+sound_off_resized = sound_off_orig.resize((15, 15))
+sound_off_img = ImageTk.PhotoImage(sound_off_resized)
+
+#---------- Player's Ship ----------
+
+ROCKET_WIDTH = 50
+ROCKET_HEIGHT = 30
 SHIP_SPEED = 20
+
 CENTER_X = WIDTH / 2
 CENTER_Y = HEIGHT / 2
 
 # Ship image
 ship_body = canvas.create_image(CENTER_X, CENTER_Y, image=rocket_img)
 
-# Collision circle for detecting hits
-ship_hitbox = canvas.create_oval(
-    CENTER_X - SHIP_RADIUS, CENTER_Y - SHIP_RADIUS,
-    CENTER_X + SHIP_RADIUS, CENTER_Y + SHIP_RADIUS,
-    outline='black'
+# Radius = 1/4 of ship height (diameter = 1/2 height)
+NOSE_RADIUS = ROCKET_HEIGHT / 4
+
+# Center of collision circle = behind the nose
+circle_center_x = CENTER_X + ROCKET_WIDTH / 2 - NOSE_RADIUS
+circle_center_y = CENTER_Y
+
+# Create collision circle
+ship_nose_hitbox = canvas.create_oval(
+    circle_center_x - NOSE_RADIUS,
+    circle_center_y - NOSE_RADIUS,
+    circle_center_x + NOSE_RADIUS,
+    circle_center_y + NOSE_RADIUS,
+    outline=''  
 )
-canvas.itemconfig(ship_hitbox, state=HIDDEN)  # hide hitbox
+canvas.itemconfig(ship_nose_hitbox, state=HIDDEN)  # hide it
 
 # Thruster/flame behind the ship
 thruster = canvas.create_polygon(
@@ -124,7 +197,7 @@ thruster = canvas.create_polygon(
     fill='orange'
 )
 
-# ---------- Thruster animation ----------
+# Thruster animation
 thruster_flame_state = 1  # 1 = bigger, -1 = smaller
 
 def animate_thruster():
@@ -143,7 +216,7 @@ def animate_thruster():
 animate_thruster()
 
 # Hide ship at the beginning
-for part in [ship_body, ship_hitbox, thruster]:
+for part in [ship_body, ship_nose_hitbox, thruster]:
     canvas.itemconfig(part, state=HIDDEN)
 
 # ---------- Ship Movement ----------
@@ -153,7 +226,7 @@ def move_ship(event):
     dy = -SHIP_SPEED if event.keysym == 'Up' else SHIP_SPEED if event.keysym == 'Down' else 0
     if dy != 0:
         canvas.move(ship_body, 0, dy)
-        canvas.move(ship_hitbox, 0, dy)
+        canvas.move(ship_nose_hitbox, 0, dy)
         canvas.move(thruster, 0, dy)
 
 canvas.bind_all('<Key>', move_ship)
@@ -163,6 +236,7 @@ bubble_ids = []
 bubble_radii = []
 bubble_speeds = []
 bubble_types = []  # 'good' or 'bad'
+bubble_images = []  # KEEP IMAGE REFERENCES so Tkinter doesn't delete them
 
 MIN_BUBBLE_R = 15
 MAX_BUBBLE_R = 30
@@ -178,18 +252,34 @@ def create_bubble():
     x = WIDTH + SPAWN_OFFSET
     y = randint(0, HEIGHT)
 
-    ty = 'good' if random() < good_chance else 'bad'
+    # Decide bubble type based on probabilities
+    rand_val = random()
+    if rand_val < 0.11:  # 11% chance for fuel (rare)
+        ty = 'fuel'
+    elif rand_val < good_chance:  # good_chance controls star frequency
+        ty = 'star'
+    else:
+        ty = 'bad'  # meteors
 
     # Decide radius
     r = randint(MIN_BUBBLE_R, MAX_BUBBLE_R)
 
-    if ty == 'good':
-        img_orig = fuel_orig  # keep the original PIL.Image
+    # Assign image and resize while keeping ratio
+    if ty == 'fuel':
+        img_orig = fuel_orig
+        new_width = int(r*2 * 0.6)  
+        new_height = int(new_width * img_orig.height / img_orig.width)
+    elif ty == 'star':
+        img_orig = star_orig
+        new_width = r*2
+        new_height = r*2 
     else:
         img_orig = meteor_orig
+        new_width = r*2
+        new_height = r*2  # meteors are square
 
     # Resize dynamically
-    img_resized = img_orig.resize((r*2, r*2))
+    img_resized = img_orig.resize((new_width, new_height))
     img = ImageTk.PhotoImage(img_resized)
 
     # Keep reference so Tkinter doesn't garbage collect it
@@ -201,31 +291,9 @@ def create_bubble():
     bubble_speeds.append(randint(3, 3 + r//2))
     bubble_types.append(ty)
 
+    # Optional: slowly decrease star chance over time
     good_chance = max(0.05, good_chance - GOOD_DECREASE_RATE)
 
-
-def create_bubble():
-    global good_chance
-    x = WIDTH + SPAWN_OFFSET
-    y = randint(0, HEIGHT)
-
-    # Determine type
-    ty = 'good' if random() < good_chance else 'bad'
-    if ty == 'good':
-        img = fuel_img
-        r = fuel_img.width() // 2
-    else:
-        img = meteor_img
-        r = meteor_img.width() // 2
-
-    bubble_id = canvas.create_image(x, y, image=img)
-    bubble_ids.append(bubble_id)
-    bubble_radii.append(r)
-    speed = randint(3, 3 + r // 2)
-    bubble_speeds.append(speed)
-    bubble_types.append(ty)
-
-    good_chance = max(0.05, good_chance - GOOD_DECREASE_RATE)
 
 # Move bubbles left
 def move_bubbles():
@@ -267,30 +335,65 @@ def distance(id1, id2):
 
 # ---------- HUD ----------
 
-canvas.create_text(50, 30, text='TIME', fill='white')
-canvas.create_text(150, 30, text='SCORE', fill='white')
+# HUD positions
+HUD_PADDING = 20
+SCORE_X = HUD_PADDING
+SCORE_Y = HUD_PADDING
+TIME_BAR_WIDTH = 200
+TIME_BAR_HEIGHT = 20
+TIME_BAR_X = SCORE_X + 140  # place the bar a bit to the right of the score
+TIME_BAR_Y = SCORE_Y
 
-time_text = canvas.create_text(50, 50, fill='white')
-score_text = canvas.create_text(150, 50, fill='white')
+# Score text
+score_text = canvas.create_text(SCORE_X, SCORE_Y, anchor='nw', text='SCORE: 0', fill='white', font=('Orbitron', 14))
 
-# Sound button rectangle
-sound_btn_rect = canvas.create_rectangle(WIDTH - 130, 20, WIDTH - 20, 50, fill='gray20', outline='white')
-sound_btn_text = canvas.create_text(WIDTH - 75, 35, text="Sound: ON", fill='white', font=('Helvetica', 12))
+# Time bar background
+time_bar_bg = canvas.create_rectangle(
+    TIME_BAR_X, TIME_BAR_Y,
+    TIME_BAR_X + TIME_BAR_WIDTH, TIME_BAR_Y + TIME_BAR_HEIGHT,
+    fill='gray40'
+)
 
-# Bind clicks
-canvas.tag_bind(sound_btn_rect, '<Button-1>', lambda e: toggle_sound())
-canvas.tag_bind(sound_btn_text, '<Button-1>', lambda e: toggle_sound())
+# Time bar fill
+time_bar_fill = canvas.create_rectangle(
+    TIME_BAR_X, TIME_BAR_Y,
+    TIME_BAR_X + TIME_BAR_WIDTH, TIME_BAR_Y + TIME_BAR_HEIGHT,
+    fill='green'
+)
 
 
-# Hide the HUD at the start
-canvas.itemconfig(time_text, state=HIDDEN)
-canvas.itemconfig(score_text, state=HIDDEN)
+
+# Image button for sound
+padding = 10
+sound_img_width = 30 
+sound_img_height = 30
+
+sound_btn_img = canvas.create_image(
+    WIDTH - padding - sound_img_width//2, 
+    padding + sound_img_height//2, 
+    image=sound_on_img
+)
+canvas.tag_bind(sound_btn_img, '<Button-1>', lambda e: toggle_sound())
 
 def update_score_display(score):
-    canvas.itemconfig(score_text, text=str(score))
+    canvas.itemconfig(score_text, text=f"SCORE: {score}")
 
 def update_time_display(time_left):
-    canvas.itemconfig(time_text, text=str(int(time_left)))
+    proportion = max(0, time_left / start_time_account)
+    canvas.coords(time_bar_fill,
+                  TIME_BAR_X, TIME_BAR_Y,
+                  TIME_BAR_X + TIME_BAR_WIDTH * proportion,
+                  TIME_BAR_Y + TIME_BAR_HEIGHT)
+    
+    if proportion > 0.5:
+        color = 'green'
+    elif proportion > 0.2:
+        color = 'yellow'
+    else:
+        color = 'red'
+        
+    canvas.itemconfig(time_bar_fill, fill=color)
+
 
 
 # ---------- Time/Score management ----------
@@ -298,37 +401,60 @@ def update_time_display(time_left):
 start_time_account = 30.0  # seconds initial
 time_account = start_time_account
 score = 0
+best_score = 0
+
+planets = [
+    {"score": 200, "name": "Moon", "image": "moon.png"},
+    {"score": 500, "name": "Saturn", "image": "planet.png"},
+    {"score": 800, "name": "Mars", "image": "planet2.png"},
+    {"score": 1500, "name": "Venus", "image": "planet3.png"},
+]
+current_planet_index = 0  # track which planet is next
 
 
 # ---------- Collision handling (affects time_account and score) ----------
 
 def check_collisions_and_apply():
     global time_account, score
-    # iterate backwards to safely delete bubbles while looping
+
+    # Get ship nose collision circle center
+    ship_coords = canvas.coords(ship_body)
+    nose_x = ship_coords[0] + ROCKET_WIDTH / 2       # nose of the ship
+    nose_y = ship_coords[1]
+
+    # Circle center is behind nose by NOSE_RADIUS
+    circle_center_x = nose_x - NOSE_RADIUS
+    circle_center_y = nose_y
+
     for i in range(len(bubble_ids) - 1, -1, -1):
-        # calculate distance between ship and bubble
-        if distance(ship_hitbox, bubble_ids[i]) < (SHIP_RADIUS + bubble_radii[i]):
-            r = bubble_radii[i]
-            s = bubble_speeds[i]
-            # time change based on radius + speed
-            seconds_change = (r + s) / 10.0
+        bubble_x, bubble_y = get_center(bubble_ids[i])
+        dist = sqrt((bubble_x - circle_center_x)**2 + (bubble_y - circle_center_y)**2)
 
-            if bubble_types[i] == 'good':
+        # Collision occurs if distance < sum of radii
+        if dist < (bubble_radii[i] + NOSE_RADIUS):
+            r = bubble_radii[i]  # bubble radius
+            s = bubble_speeds[i]  # bubble speed
+
+            if bubble_types[i] == 'fuel':
+                # smaller fuel = more time
+                seconds_change = max(1, (MAX_BUBBLE_R - r + 5) / 3)
                 time_account += seconds_change
-                score += int(r + s)  # add points proportional to size + speed
-                if sound_on:
-                    sound_green.play()  # play positive sound
-            else:
+                play_sound(sound_green)
+
+            elif bubble_types[i] == 'star':
+                # smaller star = more score
+                points = max(1, int((MAX_BUBBLE_R - r + 5) * 2))
+                score += points
+                play_sound(sound_green)
+
+            else:  # meteor
+                # bigger meteor = more time penalty
+                seconds_change = (r + s) / 20.0
                 time_account -= seconds_change
-                # Deduct points for bad bubble, proportional to size + speed, keep score non-negative
-                score = max(0, score - int((r + s) / 2))
-                if sound_on:
-                    sound_red.play()    # play negative sound
+                play_sound(sound_red)
 
-            # delete bubble after collision
-            delete_bubble(i)
+            delete_bubble(i)  # remove bubble
 
-    # ensure time doesn't go negative (optional, keeps display clean)
     if time_account < 0:
         time_account = 0
             
@@ -349,39 +475,89 @@ def show_menu():
     global menu_items, state
     state = MENU
     clear_menu()
+    
+    menu_items = []
 
-    # Gray background rectangle for menu
-    rect_width = 500
-    rect_height = 350
-    menu_bg = canvas.create_rectangle(
-        CENTER_X - rect_width // 2,
-        CENTER_Y - rect_height // 2,
-        CENTER_X + rect_width // 2,
-        CENTER_Y + rect_height // 2,
-        fill='gray30',
-        outline=''
-    )
+    # Background rectangle over the entire canvas
+    bg = canvas.create_rectangle(0, 0, WIDTH, HEIGHT, fill='black', outline='')
+    menu_items.append(bg)
+
+    # Stars in the background
+    star_ids_menu = []
+    for _ in range(80):
+        x = randint(20, WIDTH-20)
+        y = randint(20, HEIGHT-20)
+        r = randint(1, 3)
+        star = canvas.create_oval(x-r, y-r, x+r, y+r, fill='white', outline='')
+        star_ids_menu.append(star)
+        menu_items.append(star)
+
+    # Animate twinkling stars
+    def twinkle_menu_stars():
+        if state != MENU:
+            return
+        for star in star_ids_menu:
+            brightness = randint(150, 255)
+            hex_color = f"#{brightness:02x}{brightness:02x}{brightness:02x}"
+            canvas.itemconfig(star, fill=hex_color)
+        window.after(200, twinkle_menu_stars)
+
+    twinkle_menu_stars()
 
     # Title
-    title = canvas.create_text(CENTER_X, 120, text='Bubble Popper', fill='white', font=('Helvetica', 40, 'bold'))
+    title = canvas.create_text(CENTER_X, 100, text='Spaceship Sprint', fill='white', font=('Orbitron', 50, 'bold'))
+    menu_items.append(title)
 
-    # Start button
-    btn_x = CENTER_X
-    start_btn = canvas.create_rectangle(btn_x - 100, 200, btn_x + 100, 250, fill='gray20', outline='white')
-    start_txt = canvas.create_text(btn_x, 225, text='Start Game', fill='white', font=('Helvetica', 16))
+    # Subtitle / Instructions
+    subtitle = canvas.create_text(CENTER_X, 160, 
+                                  text='Collect stars, avoid meteors, reach the moon!',
+                                  fill='lightblue', font=('Orbitron', 18, 'italic'))
+    menu_items.append(subtitle)
 
-    # Exit button
-    exit_btn = canvas.create_rectangle(btn_x - 100, 270, btn_x + 100, 320, fill='gray20', outline='white')
-    exit_txt = canvas.create_text(btn_x, 295, text='Exit Game', fill='white', font=('Helvetica', 16))
+    # Start Button
+    start_btn_color = '#1E90FF'  # blue
+    start_btn_hover = '#63B8FF'  # lighter blue
+    start_btn = canvas.create_rectangle(CENTER_X-120, 250, CENTER_X+120, 310, fill=start_btn_color, outline='white', width=2)
+    start_txt = canvas.create_text(CENTER_X, 280, text='START GAME', fill='white', font=('Orbitron', 20, 'bold'))
+    menu_items.extend([start_btn, start_txt])
 
-    # Include all items in menu_items so they can be cleared
-    menu_items = [menu_bg, title, start_btn, start_txt, exit_btn, exit_txt]
+    # Exit Button
+    exit_btn_color = '#800080'  # purple
+    exit_btn_hover = '#B266FF'  # lighter purple
+    exit_btn = canvas.create_rectangle(CENTER_X-120, 330, CENTER_X+120, 390, fill=exit_btn_color, outline='white', width=2)
+    exit_txt = canvas.create_text(CENTER_X, 360, text='EXIT GAME', fill='white', font=('Orbitron', 20, 'bold'))
+    menu_items.extend([exit_btn, exit_txt])
+
+    # Best Score at the bottom
+    best_score_txt = canvas.create_text(CENTER_X, HEIGHT - 30, text=f'BEST SCORE: {best_score}', fill='#FFD700', font=('Orbitron', 20, 'bold'))  # gold
+    menu_items.append(best_score_txt)
 
     # Bind clicks
     canvas.tag_bind(start_btn, '<Button-1>', lambda e: start_game())
     canvas.tag_bind(start_txt, '<Button-1>', lambda e: start_game())
     canvas.tag_bind(exit_btn, '<Button-1>', lambda e: exit_game())
     canvas.tag_bind(exit_txt, '<Button-1>', lambda e: exit_game())
+
+    # Hover Effects
+    def on_enter_start(e):
+        canvas.itemconfig(start_btn, fill=start_btn_hover)
+    def on_leave_start(e):
+        canvas.itemconfig(start_btn, fill=start_btn_color)
+
+    def on_enter_exit(e):
+        canvas.itemconfig(exit_btn, fill=exit_btn_hover)
+    def on_leave_exit(e):
+        canvas.itemconfig(exit_btn, fill=exit_btn_color)
+
+    canvas.tag_bind(start_btn, '<Enter>', on_enter_start)
+    canvas.tag_bind(start_txt, '<Enter>', on_enter_start)
+    canvas.tag_bind(start_btn, '<Leave>', on_leave_start)
+    canvas.tag_bind(start_txt, '<Leave>', on_leave_start)
+
+    canvas.tag_bind(exit_btn, '<Enter>', on_enter_exit)
+    canvas.tag_bind(exit_txt, '<Enter>', on_enter_exit)
+    canvas.tag_bind(exit_btn, '<Leave>', on_leave_exit)
+    canvas.tag_bind(exit_txt, '<Leave>', on_leave_exit)
 
 
 def show_pause_overlay():
@@ -403,7 +579,7 @@ def show_pause_overlay():
     )
 
     # PAUSED text
-    pause_overlay = canvas.create_text(CENTER_X, CENTER_Y, text='PAUSED', fill='yellow', font=('Helvetica', 40, 'bold'))
+    pause_overlay = canvas.create_text(CENTER_X, CENTER_Y, text='PAUSED', fill='yellow', font=('Orbitron', 40, 'bold'))
 
 
 def hide_pause_overlay():
@@ -415,52 +591,202 @@ def hide_pause_overlay():
         canvas.delete(pause_bg)
         pause_bg = None
 
+# -------- NEXT PLANET --------
+
+# ---------- PLANET FLY-IN ----------
+def planet_fly_in(planet):
+    global state, planet_images, hidden_objects
+    state = GAME_PAUSED
+
+    # Hide all bubbles and HUD, but keep ship and score visible
+    hidden_objects = bubble_ids[:] + [time_bar_bg, time_bar_fill, sound_btn_img]
+    for obj in hidden_objects:
+        canvas.itemconfig(obj, state=HIDDEN)
+
+    # Make sure score is on top
+    canvas.tag_raise(score_text)
+    
+    # Planet image
+    planet_img_orig = Image.open(planet["image"])
+    planet_width = 180
+    planet_height = 180
+    planet_img_resized = planet_img_orig.resize((planet_width, planet_height))
+    planet_img = ImageTk.PhotoImage(planet_img_resized)
+    if "planet_images" not in globals():
+        global planet_images
+        planet_images = []
+    planet_images.append(planet_img)
+
+    start_x = WIDTH + 100
+    ship_x, ship_y = canvas.coords(ship_body)
+    end_x = ship_x + ROCKET_WIDTH/2 + planet_width/2  # stop at nose
+    end_y = ship_y
+
+    planet_id = canvas.create_image(start_x, end_y, image=planet_img)
+
+    # Play milestone clap
+    stop_music()
+    play_sound(sound_clap)
+
+    def animate():
+        nonlocal start_x
+        if start_x > end_x:
+            start_x -= 10
+            canvas.coords(planet_id, start_x, end_y)
+            window.after(50, animate)
+        else:
+            show_reach_planet_overlay(planet, planet_id)
+
+    animate()
+
+
+# ---------- SHOW PLANET OVERLAY ----------
+def show_reach_planet_overlay(planet, planet_id):
+    global game_over_items
+    game_over_items = []
+
+    # Semi-transparent rectangle (smaller, centered)
+    rect_width = 550
+    rect_height = 250
+    rect = canvas.create_rectangle(
+        CENTER_X - rect_width//2,
+        CENTER_Y - rect_height//2,
+        CENTER_X + rect_width//2,
+        CENTER_Y + rect_height//2,
+        fill='gray30',
+        stipple='gray12',
+        outline='white',
+        width=2
+    )
+
+    # Texts centered
+    txt = canvas.create_text(
+        CENTER_X, CENTER_Y - 40,
+        text=f"Congratulations!\nYou've reached the {planet['name']}!",
+        fill='white',
+        font=('Orbitron', 24, 'bold'),
+        justify='center'
+    )
+
+    # Buttons centered
+    next_btn = canvas.create_rectangle(CENTER_X - 180, CENTER_Y + 20, CENTER_X + 180, CENTER_Y + 60, fill='green', outline='white')
+    next_txt = canvas.create_text(CENTER_X, CENTER_Y + 40, text='I want to reach the next planet', fill='white', font=('Orbitron', 14))
+
+    exit_btn = canvas.create_rectangle(CENTER_X - 180, CENTER_Y + 70, CENTER_X + 180, CENTER_Y + 110, fill='purple', outline='white')
+    exit_txt = canvas.create_text(CENTER_X, CENTER_Y + 90, text='Back to Menu', fill='white', font=('Orbitron', 14))
+
+    game_over_items = [rect, txt, next_btn, next_txt, exit_btn, exit_txt, planet_id]
+
+    # Bind buttons
+    canvas.tag_bind(next_btn, '<Button-1>', lambda e: continue_to_next_planet(planet_id))
+    canvas.tag_bind(next_txt, '<Button-1>', lambda e: continue_to_next_planet(planet_id))
+    canvas.tag_bind(exit_btn, '<Button-1>', lambda e: back_to_menu())
+    canvas.tag_bind(exit_txt, '<Button-1>', lambda e: back_to_menu())
+
+# ---------- CONTINUE TO NEXT PLANET ----------
+def continue_to_next_planet(planet_id=None):
+    global state, time_account, game_over_items, current_planet_index
+    # Remove overlay and planet
+    clear_game_over()
+
+    if planet_id:
+        canvas.delete(planet_id)
+
+    # Reset time and resume game
+    time_account = start_time_account
+    state = GAME_RUNNING
+    current_planet_index += 1
+
+    # Show ship/HUD again
+    for obj in hidden_objects:
+        canvas.itemconfig(obj, state=NORMAL)
+
+    start_music()
+    tick()
+
+
+
+# --------GAME OVER ------
 def show_game_over():
-    global game_over_items, state
+    global game_over_items, state, best_score
     state = GAME_OVER
     
-    # Clear previous game over items
     clear_game_over()
     
-    # play game over sound
-    stop_music()
-    if sound_on:
-        sound_game_over.play()
-        game_over_sound_playing = True
-    else:
-        game_over_sound_playing = False
+    if score > best_score:
+        best_score = score
     
-    # Add gray transparent background rectangle
+    stop_music()
+    play_sound(sound_game_over)
+    
+    game_over_items = []
+
+    # Bigger central rectangle
     rect_width = 500
-    rect_height = 350
+    rect_height = 380
     rect = canvas.create_rectangle(
         CENTER_X - rect_width // 2,
         CENTER_Y - rect_height // 2,
         CENTER_X + rect_width // 2,
         CENTER_Y + rect_height // 2,
-        fill='gray30',
-        stipple='gray12',
-        outline=''
+        fill='gray25',
+        stipple='gray25',
+        outline='white',
+        width=2
     )
-    
-    # Game Over Text
-    txt = canvas.create_text(CENTER_X, CENTER_Y - 40, text='GAME OVER', fill='white', font=('Helvetica', 40, 'bold'))
-    score_txt = canvas.create_text(CENTER_X, CENTER_Y + 10, text=f'SCORE: {score}', fill='white', font=('Helvetica', 20))
-    
-    # Buttons
-    back_btn = canvas.create_rectangle(CENTER_X - 90, CENTER_Y + 50, CENTER_X + 90, CENTER_Y + 90, fill='gray20', outline='white')
-    back_txt = canvas.create_text(CENTER_X, CENTER_Y + 70, text='Back to Menu', fill='white')
-    exit_btn = canvas.create_rectangle(CENTER_X - 90, CENTER_Y + 100, CENTER_X + 90, CENTER_Y + 140, fill='gray20', outline='white')
-    exit_txt = canvas.create_text(CENTER_X, CENTER_Y + 120, text='Exit Game', fill='white')
+    game_over_items.append(rect)
 
-    # Add all items to list
-    game_over_items = [rect, txt, score_txt, back_btn, back_txt, exit_btn, exit_txt]
-    
+    # Game Over title
+    txt = canvas.create_text(CENTER_X, CENTER_Y - 120, text='GAME OVER', fill='#FF3333', font=('Orbitron', 48, 'bold'))
+    game_over_items.append(txt)
+
+    # Current score
+    score_txt = canvas.create_text(CENTER_X, CENTER_Y - 55, text=f'SCORE: {score}', fill='white', font=('Orbitron', 24, 'bold'))
+    game_over_items.append(score_txt)
+
+    # Back to Menu Button (blue)
+    back_btn_color = '#1E90FF'
+    back_btn_hover = '#63B8FF'
+    back_btn = canvas.create_rectangle(CENTER_X-120, CENTER_Y+10, CENTER_X+120, CENTER_Y+65, fill=back_btn_color, outline='white', width=2)
+    back_txt = canvas.create_text(CENTER_X, CENTER_Y+37, text='Back to Menu', fill='white', font=('Orbitron', 22, 'bold'))
+    game_over_items.extend([back_btn, back_txt])
+
+    # Exit Button (purple)
+    exit_btn_color = '#800080'
+    exit_btn_hover = '#B266FF'
+    exit_btn = canvas.create_rectangle(CENTER_X-120, CENTER_Y+85, CENTER_X+120, CENTER_Y+140, fill=exit_btn_color, outline='white', width=2)
+    exit_txt = canvas.create_text(CENTER_X, CENTER_Y+112, text='Exit Game', fill='white', font=('Orbitron', 22, 'bold'))
+    game_over_items.extend([exit_btn, exit_txt])
+
+    # Best score
+    best_txt = canvas.create_text(CENTER_X, CENTER_Y+170, text=f'BEST SCORE: {best_score}', fill='#FFD700', font=('Orbitron', 18, 'bold'))
+    game_over_items.append(best_txt)
+
     # Bind clicks
     canvas.tag_bind(back_btn, '<Button-1>', lambda e: back_to_menu())
     canvas.tag_bind(back_txt, '<Button-1>', lambda e: back_to_menu())
     canvas.tag_bind(exit_btn, '<Button-1>', lambda e: exit_game())
     canvas.tag_bind(exit_txt, '<Button-1>', lambda e: exit_game())
+
+    # Hover Effects
+    def on_enter_back(e):
+        canvas.itemconfig(back_btn, fill=back_btn_hover)
+    def on_leave_back(e):
+        canvas.itemconfig(back_btn, fill=back_btn_color)
+    canvas.tag_bind(back_btn, '<Enter>', on_enter_back)
+    canvas.tag_bind(back_txt, '<Enter>', on_enter_back)
+    canvas.tag_bind(back_btn, '<Leave>', on_leave_back)
+    canvas.tag_bind(back_txt, '<Leave>', on_leave_back)
+
+    def on_enter_exit(e):
+        canvas.itemconfig(exit_btn, fill=exit_btn_hover)
+    def on_leave_exit(e):
+        canvas.itemconfig(exit_btn, fill=exit_btn_color)
+    canvas.tag_bind(exit_btn, '<Enter>', on_enter_exit)
+    canvas.tag_bind(exit_txt, '<Enter>', on_enter_exit)
+    canvas.tag_bind(exit_btn, '<Leave>', on_leave_exit)
+    canvas.tag_bind(exit_txt, '<Leave>', on_leave_exit)
+
 
 def clear_game_over():
     global game_over_items
@@ -469,17 +795,27 @@ def clear_game_over():
     game_over_items = []
 
 def back_to_menu():
-    # stop game over sound if playing
+    global best_score, score
+
+    # Update best score if current score is higher
+    if score > best_score:
+        best_score = score
+
+    # Stop any sounds
     sound_game_over.stop()
-    
-    # reset game variables and show menu
-    global time_account, score
+
+    # Reset game variables
     time_account = start_time_account
     score = 0
+
+    # Clear planet overlay or other items
     clear_game_over()
+
+    # Show menu
     show_menu()
 
 def exit_game():
+    pygame.mixer.quit()  # stop all sounds safely
     window.destroy()
 
 # ---------- Start / Pause / Run logic ----------
@@ -493,9 +829,8 @@ def start_game():
     update_time_display(time_account)
     
     # ---------- SHOW SHIP & HUD ----------
-    for part in [ship_body, ship_hitbox, thruster]:
+    for part in [ship_body, ship_nose_hitbox, thruster]:
         canvas.itemconfig(part, state=NORMAL)
-    canvas.itemconfig(time_text, state=NORMAL)
     canvas.itemconfig(score_text, state=NORMAL)
     # -----------------------------------
     
@@ -519,13 +854,13 @@ def toggle_pause(event=None):
 canvas.bind_all('<space>', toggle_pause)
 canvas.bind_all('p', toggle_pause)
 
-TICK_MS = 50  # 50 ms per tick (~20 FPS)
+TICK_MS = 50  # 50 ms per tick
 
 difficulty_level = 0  # increases over time
 good_chance = 0.3  # start with 30% good
 
 def tick():
-    global state, time_account, score, good_chance
+    global state, time_account, score, good_chance, current_planet_index
 
     if state != GAME_RUNNING:
         return
@@ -542,10 +877,25 @@ def tick():
     cleanup_bubbles()
     check_collisions_and_apply()
 
+    # raise HUD and ship on top of bubbles
+    canvas.tag_raise(score_text)
+    canvas.tag_raise(time_bar_bg)
+    canvas.tag_raise(time_bar_fill)
+    canvas.tag_raise(sound_btn_img)
+    canvas.tag_raise(ship_body)
+    canvas.tag_raise(ship_nose_hitbox)
+    canvas.tag_raise(thruster)
+
     # decrease time account by tick
     time_account -= (TICK_MS / 1000.0)
     update_score_display(score)
     update_time_display(time_account)
+
+    # check planet milestone
+    if current_planet_index < len(planets):
+        if score >= planets[current_planet_index]["score"]:
+            planet_fly_in(planets[current_planet_index])
+            return  # pause the tick loop while planet animation is ongoing
 
     if time_account <= 0:
         # game over
