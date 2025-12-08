@@ -14,6 +14,7 @@
 #added spacey font type
 
 
+
 #still to be done:
 #-fix collision radius
 #-make the main screen prettier (add instructions?)
@@ -21,6 +22,7 @@
 #adjust read.me
 #-make pause screen prettier
 #-add restart game or back to menu
+#idea: after the last planet make the meteors more difficult
 
 
 
@@ -863,19 +865,19 @@ def exit_game():
 
 # ---------- Start / Pause / Run logic ----------
 def start_game():
-    global state, time_account, score
+    global state, time_account, score, current_planet_index
     # reset game state, clear menu
     clear_menu()
     time_account = start_time_account
     score = 0
+    current_planet_index = 0
     update_score_display(score)
     update_time_display(time_account)
     
-    # ---------- SHOW SHIP & HUD ----------
+    # SHOW SHIP & HUD 
     for part in [ship_body, ship_nose_hitbox, thruster]:
         canvas.itemconfig(part, state=NORMAL)
     canvas.itemconfig(score_text, state=NORMAL)
-    # -----------------------------------
     
     # clear existing bubbles
     for i in range(len(bubble_ids) - 1, -1, -1):
@@ -883,6 +885,7 @@ def start_game():
     state = GAME_RUNNING
     start_music() # start background music
     tick()
+
 
 def toggle_pause(event=None):
     global state
