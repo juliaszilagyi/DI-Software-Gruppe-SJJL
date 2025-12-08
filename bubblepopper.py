@@ -11,7 +11,7 @@
 #made main screen and exit screen "prettier"
 #all bubbles movee behind the score bar
 #-added a story! After 200, 500, 800, and 1500 points they reach a new planet
-
+#added spacey font type
 
 
 #still to be done:
@@ -20,7 +20,6 @@
 #-make exit screen prettier
 #adjust read.me
 #-make pause screen prettier
-#-cooler space font type
 #-add restart game or back to menu
 
 
@@ -164,7 +163,7 @@ sound_off_img = ImageTk.PhotoImage(sound_off_resized)
 
 ROCKET_WIDTH = 50
 ROCKET_HEIGHT = 30
-SHIP_SPEED = 20
+SHIP_SPEED = 10
 
 CENTER_X = WIDTH / 2
 CENTER_Y = HEIGHT / 2
@@ -223,13 +222,57 @@ for part in [ship_body, ship_nose_hitbox, thruster]:
 def move_ship(event):
     if state != GAME_RUNNING:
         return
-    dy = -SHIP_SPEED if event.keysym == 'Up' else SHIP_SPEED if event.keysym == 'Down' else 0
-    if dy != 0:
-        canvas.move(ship_body, 0, dy)
-        canvas.move(ship_nose_hitbox, 0, dy)
-        canvas.move(thruster, 0, dy)
 
-canvas.bind_all('<Key>', move_ship)
+    if event.keysym == 'Up':
+        dy = -SHIP_SPEED
+    elif event.keysym == 'Down':
+        dy = SHIP_SPEED
+    else:
+        return
+
+    canvas.move(ship_body, 0, dy)
+    canvas.move(ship_nose_hitbox, 0, dy)
+    canvas.move(thruster, 0, dy)
+
+
+key_up_pressed = False
+key_down_pressed = False
+
+def on_key_press(event):
+    global key_up_pressed, key_down_pressed
+    if event.keysym == "Up":
+        key_up_pressed = True
+    elif event.keysym == "Down":
+        key_down_pressed = True
+
+def on_key_release(event):
+    global key_up_pressed, key_down_pressed
+    if event.keysym == "Up":
+        key_up_pressed = False
+    elif event.keysym == "Down":
+        key_down_pressed = False
+
+canvas.bind_all('<KeyPress>', on_key_press)
+canvas.bind_all('<KeyRelease>', on_key_release)
+
+def smooth_move():
+    if state == GAME_RUNNING:
+        if key_up_pressed:
+            canvas.move(ship_body, 0, -SHIP_SPEED)
+            canvas.move(ship_nose_hitbox, 0, -SHIP_SPEED)
+            canvas.move(thruster, 0, -SHIP_SPEED)
+
+        if key_down_pressed:
+            canvas.move(ship_body, 0, SHIP_SPEED)
+            canvas.move(ship_nose_hitbox, 0, SHIP_SPEED)
+            canvas.move(thruster, 0, SHIP_SPEED)
+
+    window.after(20, smooth_move)
+
+smooth_move()
+
+
+
 
 # ---------- Bubbles (as images) ----------
 bubble_ids = []
