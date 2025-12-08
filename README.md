@@ -1,4 +1,154 @@
+# Spaceship Sprint
+## DI-Software-Gruppe-SJJL // pair1SJ
 
+## Überblick
+
+„**Spaceship Sprint**“ ist ein kleines Arcade-Spiel in Python mit `tkinter`.  
+Der Spieler steuert ein **Raumschiff** und muss **Sterne einsammeln** und **Meteoriten ausweichen**.
+
+- **Sterne (good bubbles)** erhöhen den **Score**.  
+- **Treibstoff (fuel bubbles)** verlängert die **verbleibende Zeit**.  
+- **Meteoriten (bad bubbles)** verringern die **Zeit**.  
+
+- Je **kleiner** ein Stern oder Treibstoff, desto **mehr Punkte oder Zeit** er gibt.  
+- Je **größer** ein Meteorit, desto **stärker** wird die Zeit reduziert.  
+
+Das Spiel enthält außerdem **Twinkling Stars** im Hintergrund, **Best Score**, und kleine **Story-Momente**, bei denen der Spieler nach Erreichen bestimmter Punkte **neue Planeten besucht**.
+
+Dieses Projekt wird in einer **gemeinsamen Git-Repository** entwickelt.
+
+---
+
+## Features
+
+### 1. Startseite (Hauptmenü)
+
+Beim Start des Programms wird zuerst eine **Startseite** angezeigt, nicht das Spiel selbst.
+
+**Elemente der Startseite:**
+
+- Titel des Spiels: "**Spaceship Sprint**"  
+- Zwei Buttons:
+  - **Start Game** – startet das eigentliche Spiel
+  - **Exit Game** – beendet das Programm  
+- **Beste Punktzahl** wird unten angezeigt
+
+**Technische Umsetzung:**
+
+- Ein `Tk()`-Fenster und Canvas werden wiederverwendet.  
+- Eigener **State** für das Menü: `state = "MENU"`  
+- **Hover-Effekte** für Buttons
+
+---
+
+### 2. Spielfluss & Steuerung
+
+**Steuerung des Schiffes:**
+
+- Pfeiltasten:
+  - `↑` – nach oben
+  - `↓` – nach unten
+- `Space` oder `P` – **Pause / Fortsetzen**
+
+**Spielzustände (States):**
+
+- `MENU` – Startseite  
+- `GAME_RUNNING` – Spiel läuft  
+- `GAME_PAUSED` – Spiel pausiert  
+- `GAME_OVER` – Endbildschirm  
+
+**Tick-Loop:** Läuft nur, wenn `state == GAME_RUNNING`
+
+---
+
+### 3. Pause-Funktion
+
+Das Spiel kann **pausiert** werden:
+
+- `Space` oder `P`: **Pauses / resumes** das Spiel  
+- Während der Pause:
+  - **Bubbles bewegen sich nicht**  
+  - **Keine neuen Bubbles** werden erstellt  
+  - **Zeit läuft nicht weiter**  
+- Text "**PAUSED**" wird in der Mitte angezeigt
+
+---
+
+### 4. Sterne, Treibstoff & Meteoriten
+
+- **Sterne (good):** erhöhen den **Score**  
+  - **Kleinere Sterne** bringen **mehr Punkte**
+- **Treibstoff (fuel):** verlängert die **verbleibende Zeit**  
+  - **Kleinere Treibstoff-Bubbles** geben **mehr Zeit**
+- **Meteoriten (bad):** verringern die **Zeit**  
+  - **Größere Meteoriten** ziehen **mehr Zeit** ab
+
+**Technische Umsetzung:**
+
+- `create_bubble()` entscheidet zufällig die Art der Bubble  
+- Bubble-Listen: `bubble_ids`, `bubble_radii`, `bubble_speeds`, `bubble_types`  
+- Kollisionsfunktion prüft Typ und wendet **Punkte / Zeitänderungen** an
+
+---
+
+### 5. Zeitkonto & Score
+
+- **Startwert:** 30 Sekunden  
+- Anzeige über einen **Time-Bar** und **Score-Text**  
+- Zeitänderungen bei Kollisionen abhängig von **Bubble-Typ**, **Größe** und **Geschwindigkeit**  
+- **Spielende:** wenn Zeit ≤ 0 → **Game Over**
+
+---
+
+### 6. HUD / Anzeige im Spiel
+
+- **SCORE** – aktuelle Punkte  
+- **TIME BAR** – verbleibende Zeit, mit Farbwechsel:
+  - Grün > 50%  
+  - Gelb 20–50%  
+  - Rot < 20%  
+- **Sound-Icon** – klickbar zum **An-/Ausschalten** von Musik und Soundeffekten
+
+---
+
+### 7. Hintergrundmusik & Sounds
+
+- **Hintergrundmusik** startet beim Spielstart  
+- Soundeffekte bei:
+  - **Sternen / Treibstoff** (positiv)  
+  - **Meteoriten** (negativ)  
+  - **Erreichen eines neuen Planeten** (Applaus)  
+  - **Game Over**  
+- Sound kann über **Icon** ein- und ausgeschaltet werden
+
+---
+
+### 8. Planeten & Story
+
+- **Story-Momente** nach Punkten: 200, 500, 800, 1500  
+- Spieler fliegt zu einem **neuen Planeten**  
+- Animation mit **Planet fly-in** und Overlay  
+- Buttons für:
+  - **Weiter zum nächsten Planeten**  
+  - **Zurück zum Menü**
+
+---
+
+### 9. Game Over Screen
+
+- Text: "**GAME OVER**"  
+- Anzeige von:
+  - **Score**  
+  - **Best Score**  
+- Buttons:
+  - **Back to Menu** – zurück zur Startseite  
+  - **Exit Game** – Spiel beenden
+
+---
+
+
+
+# -----OLD------- #
 # Bubble Popper
 ## DI-Software-Gruppe-SJJL // pair1SJ
 
