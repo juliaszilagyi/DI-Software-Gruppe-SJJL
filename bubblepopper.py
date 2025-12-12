@@ -573,6 +573,33 @@ def show_menu():
     exit_txt = canvas.create_text(CENTER_X, 360, text='EXIT GAME', fill='white', font=('Orbitron', 20, 'bold'))
     menu_items.extend([exit_btn, exit_txt])
 
+    # Instructions Button
+    instr_btn_color = '#228B22'  # green
+    instr_btn_hover = '#32CD32'
+    instr_btn = canvas.create_rectangle(CENTER_X-120, 410, CENTER_X+120, 470,
+                                        fill=instr_btn_color, outline='white', width=2)
+    instr_txt = canvas.create_text(CENTER_X, 440, text='INSTRUCTIONS',
+                                   fill='white', font=('Orbitron', 20, 'bold'))
+    menu_items.extend([instr_btn, instr_txt])
+
+
+
+
+    # Bind
+    canvas.tag_bind(instr_btn, '<Button-1>', lambda e: show_instructions())
+    canvas.tag_bind(instr_txt, '<Button-1>', lambda e: show_instructions())
+
+    # Hover Effects
+    def on_enter_instr(e):
+        canvas.itemconfig(instr_btn, fill=instr_btn_hover)
+    def on_leave_instr(e):
+        canvas.itemconfig(instr_btn, fill=instr_btn_color)
+
+    canvas.tag_bind(instr_btn, '<Enter>', on_enter_instr)
+    canvas.tag_bind(instr_txt, '<Enter>', on_enter_instr)
+    canvas.tag_bind(instr_btn, '<Leave>', on_leave_instr)
+    canvas.tag_bind(instr_txt, '<Leave>', on_leave_instr)
+
     # Best Score at the bottom
     best_score_txt = canvas.create_text(CENTER_X, HEIGHT - 30, text=f'BEST SCORE: {best_score}', fill='#FFD700', font=('Orbitron', 20, 'bold'))  # gold
     menu_items.append(best_score_txt)
@@ -635,6 +662,8 @@ def hide_pause_overlay():
     if pause_bg:
         canvas.delete(pause_bg)
         pause_bg = None
+
+
 
 # -------- NEXT PLANET --------
 
@@ -862,6 +891,114 @@ def back_to_menu():
 def exit_game():
     pygame.mixer.quit()  # stop all sounds safely
     window.destroy()
+
+def show_instructions():
+    global state, menu_items
+    clear_menu()
+    state = MENU
+    menu_items = []
+
+    FRAME_MARGIN = 40
+    MARGIN_MM = 15
+
+    # --- OUTER FRAME ---
+    frame = canvas.create_rectangle(
+        FRAME_MARGIN, FRAME_MARGIN,
+        WIDTH - FRAME_MARGIN, HEIGHT - FRAME_MARGIN,
+        fill="black", outline="white", width=3
+    )
+    menu_items.append(frame)
+
+    # --- TITLE ---
+    title = canvas.create_text(
+        CENTER_X, FRAME_MARGIN + 30,
+        text="📘 HOW TO PLAY — Spaceship Sprint",
+        fill="cyan",
+        font=("Orbitron", 22, "bold")
+    )
+    menu_items.append(title)
+
+    # --- LEFT-ALIGNED TEXT BLOCK (NO SCROLLING) ---
+    left_x = FRAME_MARGIN + 30
+    y = FRAME_MARGIN + 80
+    line_gap = 22
+    section_gap = 35
+
+    def add_section(header, lines, y):
+        header_id = canvas.create_text(
+            left_x, y,
+            text=header,
+            fill="white",
+            anchor="nw",
+            font=("Orbitron", 16, "bold")
+        )
+        menu_items.append(header_id)
+        y += line_gap
+
+        for line in lines:
+            line_id = canvas.create_text(
+                left_x, y,
+                text=line,
+                fill="white",
+                anchor="nw",
+                font=("Orbitron", 12)
+            )
+            menu_items.append(line_id)
+            y += line_gap
+
+        return y + section_gap
+
+    # ---- SECTIONS WITHOUT SCROLLING ----
+    y = add_section("GOAL", [
+        "Fly through space, collect stars to increase score,",
+        "collect fuel to gain extra time, and avoid meteors."
+    ], y)
+
+    y = add_section("CONTROLS", [
+        "⬆️  Press UP to move upward",
+        "⬇️  Press DOWN to move downward",
+        "⏸️  Press SPACE or 'P' to pause/unpause"
+    ], y)
+
+    # Items — shortened & reduced text
+    y = add_section("ITEMS", [
+        "⭐ Stars: Smaller stars = more points",
+        "⛽ Fuel: Smaller fuels = more time",
+        "☄️ Meteors: Larger meteors remove more time"
+    ], y)
+
+    # --- BACK BUTTON ---
+    BACK_W = 100
+    BACK_H = 35
+
+    back_btn_x1 = WIDTH - FRAME_MARGIN - BACK_W - MARGIN_MM
+    back_btn_x2 = back_btn_x1 + BACK_W
+
+    back_btn_y2 = HEIGHT - FRAME_MARGIN - MARGIN_MM
+    back_btn_y1 = back_btn_y2 - BACK_H
+
+    back_btn = canvas.create_rectangle(
+        back_btn_x1, back_btn_y1,
+        back_btn_x2, back_btn_y2,
+        fill="#1E90FF", outline="white", width=2
+    )
+    back_txt = canvas.create_text(
+        (back_btn_x1 + back_btn_x2) // 2,
+        (back_btn_y1 + back_btn_y2) // 2,
+        text="BACK",
+        fill="white",
+        font=("Orbitron", 14, "bold")
+    )
+
+    canvas.tag_raise(back_btn)
+    canvas.tag_raise(back_txt)
+
+    menu_items.extend([back_btn, back_txt])
+
+    canvas.tag_bind(back_btn, "<Button-1>", lambda e: show_menu())
+    canvas.tag_bind(back_txt, "<Button-1>", lambda e: show_menu())
+
+
 
 # ---------- Start / Pause / Run logic ----------
 def start_game():
