@@ -1,30 +1,6 @@
 # ---------- DI-Software-Gruppe-SJJL // pair1SL ----------
 # ---------- Straub Sarah, Julia Szilagyi ----------
 
-#fixed scoring, size of meteorides and fuel tanks, added twinkling stars to background
-#changed sound on off to icon, renamed bubble popper to Spaceship Sprint
-#changed time count to a bar
-#made a differentiation, collecting stars will increase score, collecting fuel will increase time
-#the smaller the star the more points it gives, the smaller the fuel the more time ti adds
-#the larger the meteor the more time it reduces
-#added best score so far
-#made main screen and exit screen "prettier"
-#all bubbles movee behind the score bar
-#-added a story! After 200, 500, 800, and 1500 points they reach a new planet
-#added spacey font type
-
-
-
-#still to be done:
-#-fix collision radius
-#-make the main screen prettier (add instructions?)
-#-make exit screen prettier
-#adjust read.me
-#-make pause screen prettier
-#-add restart game or back to menu
-#idea: after the last planet make the meteors more difficult
-
-
 
 # ---------- main_bubblepopper.py ----------
 
@@ -41,7 +17,7 @@ import math
 # ---------- Window / Canvas ----------
 
 # Window size
-HEIGHT = 500
+HEIGHT = 600
 WIDTH = 800
 
 # Create window
@@ -117,7 +93,9 @@ def play_sound(sound):
 
 # Start/Stop background music
 def start_music():
-    pygame.mixer.music.play(-1)  # -1 = loop forever
+    if sound_on:  # only play if sound is ON
+        pygame.mixer.music.play(-1)  # loop forever
+
 
 def stop_music():
     pygame.mixer.music.stop()
@@ -301,7 +279,7 @@ def create_bubble():
     rand_val = random()
     if rand_val < 0.11:  # 11% chance for fuel (rare)
         ty = 'fuel'
-    elif rand_val < good_chance:  # good_chance controls star frequency
+    elif rand_val < 0.11 + good_chance:  # good_chance controls star frequency
         ty = 'star'
     else:
         ty = 'bad'  # meteors
@@ -339,11 +317,20 @@ def create_bubble():
     # Optional: slowly decrease star chance over time
     good_chance = max(0.05, good_chance - GOOD_DECREASE_RATE)
 
+    #ship and HUD here
+    canvas.tag_raise(ship_body)
+    canvas.tag_raise(ship_nose_hitbox)
+    canvas.tag_raise(thruster)
+    canvas.tag_raise(score_text)
+    canvas.tag_raise(time_bar_bg)
+    canvas.tag_raise(time_bar_fill)
+    canvas.tag_raise(sound_btn_img)
 
 # Move bubbles left
 def move_bubbles():
     for i in range(len(bubble_ids)):
-        canvas.move(bubble_ids[i], -bubble_speeds[i], 0)
+        speed_multiplier = 1 + difficulty_level * 0.1  # +10% speed per difficulty level
+        canvas.move(bubble_ids[i], -bubble_speeds[i] * speed_multiplier, 0)
 
 # Get center coordinates
 def get_center(obj_id):
@@ -366,10 +353,17 @@ def delete_bubble(i):
 
 # Remove off-screen bubbles
 def cleanup_bubbles():
+    any_deleted = False
     for i in range(len(bubble_ids)-1, -1, -1):
         x, y = get_center(bubble_ids[i])
         if x < -SPAWN_OFFSET:
             delete_bubble(i)
+            any_deleted = True
+    
+ # Only raise layers once if we deleted bubbles
+    if any_deleted:
+        for obj in [ship_body, ship_nose_hitbox, thruster, score_text, time_bar_bg, time_bar_fill, sound_btn_img]:
+            canvas.tag_raise(obj)
 
 # Distance between objects
 def distance(id1, id2):
@@ -601,7 +595,7 @@ def show_menu():
     canvas.tag_bind(instr_txt, '<Leave>', on_leave_instr)
 
     # Best Score at the bottom
-    best_score_txt = canvas.create_text(CENTER_X, HEIGHT - 30, text=f'BEST SCORE: {best_score}', fill='#FFD700', font=('Orbitron', 20, 'bold'))  # gold
+    best_score_txt = canvas.create_text(CENTER_X, HEIGHT - 60, text=f'BEST SCORE: {best_score}', fill='#FFD700', font=('Orbitron', 20, 'bold'))  # gold
     menu_items.append(best_score_txt)
 
     # Bind clicks
@@ -775,8 +769,10 @@ def continue_to_next_planet(planet_id=None):
     for obj in hidden_objects:
         canvas.itemconfig(obj, state=NORMAL)
 
-    start_music()
+    if sound_on:
+        start_music()
     tick()
+
 
 
 
@@ -1039,18 +1035,30 @@ canvas.bind_all('p', toggle_pause)
 
 TICK_MS = 50  # 50 ms per tick
 
-difficulty_level = 0  # increases over time
-good_chance = 0.3  # start with 30% good
+def update_difficulty():
+    global difficulty_level, BUBBLE_CHANCE, good_chance
+
+    # Difficulty increases every 10s
+    difficulty_level = int((start_time_account - time_account) // 10)
+
+    # Reduce good bubble chance gradually
+    good_chance = max(0.05, 0.3 - 0.05 * difficulty_level)  # min 5% good
+
+    # Increase bubble spawn frequency (smaller BUBBLE_CHANCE = more frequent)
+    BUBBLE_CHANCE = max(2, 5 - difficulty_level // 2)  # min 2
+
+
+
 
 def tick():
     global state, time_account, score, good_chance, current_planet_index
 
     if state != GAME_RUNNING:
         return
+    
+    # update difficulty dynamically
+    update_difficulty()
 
-    # Increase difficulty over time: reduce good bubble chance
-    difficulty_level = int((start_time_account - time_account) // 10)  # every 10s
-    good_chance = max(0.05, 0.3 - 0.05 * difficulty_level)  # min 5% good
 
     # spawn bubbles randomly
     if randint(1, BUBBLE_CHANCE) == 1:
@@ -1059,15 +1067,6 @@ def tick():
     move_bubbles()
     cleanup_bubbles()
     check_collisions_and_apply()
-
-    # raise HUD and ship on top of bubbles
-    canvas.tag_raise(score_text)
-    canvas.tag_raise(time_bar_bg)
-    canvas.tag_raise(time_bar_fill)
-    canvas.tag_raise(sound_btn_img)
-    canvas.tag_raise(ship_body)
-    canvas.tag_raise(ship_nose_hitbox)
-    canvas.tag_raise(thruster)
 
     # decrease time account by tick
     time_account -= (TICK_MS / 1000.0)
