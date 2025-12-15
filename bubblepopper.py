@@ -1,8 +1,10 @@
-# ---------- DI-Software-Gruppe-SJJL // pair1SL ----------
-# ---------- Straub Sarah, Julia Szilagyi ----------
+# ------------------------------------------------------------
+# DI-Software-Gruppe-SJJL // pair1SL
+# Authors: Straub Sarah, Julia Szilagyi
+# File: main_bubblepopper.py
+# Purpose: Spaceship Sprint game (Tkinter + Pygame)
+# ------------------------------------------------------------
 
-
-# ---------- main_bubblepopper.py ----------
 
 
 from tkinter import *
@@ -14,7 +16,17 @@ from random import randint, sample
 from math import sqrt
 import math
 
+# ---------- Game States ----------
+# Define different states of the game for controlling flow
+MENU = 'MENU'
+GAME_RUNNING = 'GAME_RUNNING'
+GAME_PAUSED = 'GAME_PAUSED'
+GAME_OVER = 'GAME_OVER'
+
+state = MENU # Current state of the game
+
 # ---------- Window / Canvas ----------
+# Initialize main Tkinter window and canvas for drawing all game elements
 
 # Window size
 HEIGHT = 600
@@ -53,19 +65,44 @@ def twinkle_stars():
     # Schedule next twinkle
     window.after(120, twinkle_stars)
 
+# Star scrolling constants
+STAR_SCROLL_SPEED = 0.5  # pixels per tick, very slow
+SCROLL_MS = 30      # update every 30 ms
+
+# Distance between objects
+def distance(id1, id2):
+    x1, y1 = get_center(id1)
+    x2, y2 = get_center(id2)
+    return sqrt((x2 - x1)**2 + (y2 - y1)**2)
+
+# Get center coordinates
+def get_center(obj_id):
+    pos = canvas.coords(obj_id)
+    if not pos:
+        return -9999, -9999
+    x, y = pos[0], pos[1]
+    return x, y
+
+# Move stars slowly to the left to create movement illusion
+def scroll_stars():
+    if state != GAME_RUNNING:
+        # If game is paused or over, just reschedule without moving
+        window.after(SCROLL_MS, scroll_stars)
+        return
+
+    for star in star_ids:
+        canvas.move(star, -STAR_SCROLL_SPEED, 0)
+        x, y = get_center(star)
+        if x < 0:  # wrap around to the right
+            canvas.move(star, WIDTH, 0)
+
+    window.after(SCROLL_MS, scroll_stars)
+
 # Generate stars once at the beginning
 create_starry_background()
 twinkle_stars()
+scroll_stars()
 
-
-# ---------- Game States ----------
-
-MENU = 'MENU'
-GAME_RUNNING = 'GAME_RUNNING'
-GAME_PAUSED = 'GAME_PAUSED'
-GAME_OVER = 'GAME_OVER'
-
-state = MENU
 
 # --------- Font type ----------
 
@@ -74,29 +111,29 @@ from tkinter import font
 
 # ---------- Sounds -----------
 pygame.mixer.init()
-sound_on = True  # sound starts on
+sound_on = True  # sound starts by default
 
 # Load your sounds
-sound_green = pygame.mixer.Sound("green_sound.mp3")  # positive bubble
-sound_red = pygame.mixer.Sound("red_sound.wav")      # negative bubble
+sound_green = pygame.mixer.Sound("green_sound.mp3")  # positive bubble - fuel and star
+sound_red = pygame.mixer.Sound("red_sound.wav")      # negative bubble - meteorid
 pygame.mixer.music.load("background.ogg")            # background music
 pygame.mixer.music.set_volume(0.3)                   # adjust volume (0.0 to 1.0)
 sound_game_over = pygame.mixer.Sound("game_over.mp3")# game over sound
 sound_clap = pygame.mixer.Sound("clap.ogg") 		 # clap congratulations sound
 
-
+# Play sound if enabled
 def play_sound(sound):
     if sound_on:
         sound.play()
     else:
         sound.stop()
 
-# Start/Stop background music
+# Start background music
 def start_music():
     if sound_on:  # only play if sound is ON
         pygame.mixer.music.play(-1)  # loop forever
 
-
+# Stop sound
 def stop_music():
     pygame.mixer.music.stop()
     
@@ -111,10 +148,10 @@ def toggle_sound():
         sound_game_over.stop()  # stop game over sound if playing
         canvas.itemconfig(sound_btn_img, image=sound_off_img)
 
-#Images
+# ---------- Images -----------
 from PIL import Image, ImageTk
 
-# Load original image
+# Load, resize, and convert images to Tkinter PhotoImages
 rocket_orig = Image.open("rocket.png")
 rocket_resized = rocket_orig.resize((50, 30))  # width, height in pixels
 rocket_img = ImageTk.PhotoImage(rocket_resized)
@@ -138,6 +175,10 @@ sound_on_img = ImageTk.PhotoImage(sound_on_resized)
 sound_off_orig = Image.open("sound_off.png")
 sound_off_resized = sound_off_orig.resize((15, 15))
 sound_off_img = ImageTk.PhotoImage(sound_off_resized)
+
+# ---------- Difficulty management ----------
+POINTS_PER_LEVEL = 200
+difficulty_level = 0
 
 #---------- Player's Ship ----------
 
@@ -237,39 +278,47 @@ canvas.bind_all('<KeyRelease>', on_key_release)
 
 def smooth_move():
     if state == GAME_RUNNING:
-        if key_up_pressed:
-            canvas.move(ship_body, 0, -SHIP_SPEED)
-            canvas.move(ship_nose_hitbox, 0, -SHIP_SPEED)
-            canvas.move(thruster, 0, -SHIP_SPEED)
+        # Get current ship coordinates
+        x, y = canvas.coords(ship_body)
 
+        # Move up
+        if key_up_pressed:
+            new_y = max(ROCKET_HEIGHT/2, y - SHIP_SPEED)  # clamp top
+            dy = new_y - y
+            canvas.move(ship_body, 0, dy)
+            canvas.move(ship_nose_hitbox, 0, dy)
+            canvas.move(thruster, 0, dy)
+
+        # Move down
         if key_down_pressed:
-            canvas.move(ship_body, 0, SHIP_SPEED)
-            canvas.move(ship_nose_hitbox, 0, SHIP_SPEED)
-            canvas.move(thruster, 0, SHIP_SPEED)
+            new_y = min(HEIGHT - ROCKET_HEIGHT/2, y + SHIP_SPEED)  # clamp bottom
+            dy = new_y - y
+            canvas.move(ship_body, 0, dy)
+            canvas.move(ship_nose_hitbox, 0, dy)
+            canvas.move(thruster, 0, dy)
 
     window.after(20, smooth_move)
 
 smooth_move()
 
-
-
-
 # ---------- Bubbles (as images) ----------
-bubble_ids = []
-bubble_radii = []
-bubble_speeds = []
-bubble_types = []  # 'good' or 'bad'
-bubble_images = []  # KEEP IMAGE REFERENCES so Tkinter doesn't delete them
+bubble_ids = []       # Canvas IDs of bubbles
+bubble_radii = []     # Radii of bubbles for collision
+bubble_speeds = []    # Horizontal speed of each bubble
+bubble_types = []     # 'good' (star/fuel) or 'bad' (meteor)
+bubble_images = []    # Keep image references to prevent Tkinter GC
 
 MIN_BUBBLE_R = 15
 MAX_BUBBLE_R = 30
-SPAWN_OFFSET = 100
-BUBBLE_CHANCE = 5  # 1 in 5 each tick
-good_chance = 0.3
-GOOD_DECREASE_RATE = 0.005
+SPAWN_OFFSET = 100   # Start bubbles off-screen to the right
+BUBBLE_CHANCE = 5    # 1 in 5 chance each tick
+GOOD_DECREASE_RATE = 0.005  # Decrease probability of good bubbles over time
+
 
 from PIL import Image, ImageTk
 
+# Spawn a new bubble (fuel, star, or meteor) off-screen.
+# Dynamically resizes images based on radius.
 def create_bubble():
     global good_chance
     x = WIDTH + SPAWN_OFFSET
@@ -277,12 +326,16 @@ def create_bubble():
 
     # Decide bubble type based on probabilities
     rand_val = random()
-    if rand_val < 0.11:  # 11% chance for fuel (rare)
+
+    fuel_chance = max(0.03, 0.11 - difficulty_level * 0.02)
+    star_chance = max(0.05, good_chance)
+
+    if rand_val < fuel_chance:
         ty = 'fuel'
-    elif rand_val < 0.11 + good_chance:  # good_chance controls star frequency
+    elif rand_val < fuel_chance + star_chance:
         ty = 'star'
     else:
-        ty = 'bad'  # meteors
+        ty = 'bad'
 
     # Decide radius
     r = randint(MIN_BUBBLE_R, MAX_BUBBLE_R)
@@ -314,23 +367,22 @@ def create_bubble():
     bubble_speeds.append(randint(3, 3 + r//2))
     bubble_types.append(ty)
 
-    # Optional: slowly decrease star chance over time
+    # Slowly decrease star chance over time
     good_chance = max(0.05, good_chance - GOOD_DECREASE_RATE)
 
-    #ship and HUD here
-    canvas.tag_raise(ship_body)
-    canvas.tag_raise(ship_nose_hitbox)
-    canvas.tag_raise(thruster)
-    canvas.tag_raise(score_text)
-    canvas.tag_raise(time_bar_bg)
-    canvas.tag_raise(time_bar_fill)
-    canvas.tag_raise(sound_btn_img)
-
+    # Raise layers for ship and HUD
+    for obj in [ship_body, ship_nose_hitbox, thruster, score_text, time_bar_bg, time_bar_fill, sound_btn_img]:
+        canvas.tag_raise(obj)
+    
 # Move bubbles left
 def move_bubbles():
     for i in range(len(bubble_ids)):
-        speed_multiplier = 1 + difficulty_level * 0.1  # +10% speed per difficulty level
-        canvas.move(bubble_ids[i], -bubble_speeds[i] * speed_multiplier, 0)
+        speed = bubble_speeds[i]
+
+        if bubble_types[i] == 'bad':  # meteors
+            speed *= (1 + difficulty_level * 0.2)
+
+        canvas.move(bubble_ids[i], -speed, 0)
 
 # Get center coordinates
 def get_center(obj_id):
@@ -400,8 +452,6 @@ time_bar_fill = canvas.create_rectangle(
     fill='green'
 )
 
-
-
 # Image button for sound
 padding = 10
 sound_img_width = 30 
@@ -451,7 +501,20 @@ planets = [
 current_planet_index = 0  # track which planet is next
 
 
-# ---------- Collision handling (affects time_account and score) ----------
+def update_difficulty():
+    global difficulty_level, BUBBLE_CHANCE, good_chance
+
+    # Increase difficulty every 200 score
+    difficulty_level = score // POINTS_PER_LEVEL
+
+    # More bubbles overall (lower = more frequent spawns)
+    BUBBLE_CHANCE = max(2, 6 - difficulty_level)
+
+    # Fewer good items (stars + fuel)
+    good_chance = max(0.05, 0.30 - difficulty_level * 0.04)
+    
+
+# ---------- Collision handling ----------
 
 def check_collisions_and_apply():
     global time_account, score
@@ -504,6 +567,7 @@ pause_overlay = None
 pause_bg = None
 game_over_items = []
 
+# Delete all menu items from the canvas
 def clear_menu():
     global menu_items
     for item in menu_items:
@@ -576,9 +640,6 @@ def show_menu():
                                    fill='white', font=('Orbitron', 20, 'bold'))
     menu_items.extend([instr_btn, instr_txt])
 
-
-
-
     # Bind
     canvas.tag_bind(instr_btn, '<Button-1>', lambda e: show_instructions())
     canvas.tag_bind(instr_txt, '<Button-1>', lambda e: show_instructions())
@@ -625,7 +686,7 @@ def show_menu():
     canvas.tag_bind(exit_btn, '<Leave>', on_leave_exit)
     canvas.tag_bind(exit_txt, '<Leave>', on_leave_exit)
 
-
+# Pause Overlay
 def show_pause_overlay():
     global pause_overlay, pause_bg
     if pause_overlay is not None:
@@ -657,14 +718,15 @@ def hide_pause_overlay():
         canvas.delete(pause_bg)
         pause_bg = None
 
-
-
-# -------- NEXT PLANET --------
-
 # ---------- PLANET FLY-IN ----------
+
+PLANET_ANIMATION = 'PLANET_ANIMATION'
+
+# Animate a planet flying in to the ship's nose when a score milestone is reached.
+# Pauses game logic and hides non-essential objects.
 def planet_fly_in(planet):
     global state, planet_images, hidden_objects
-    state = GAME_PAUSED
+    state = PLANET_ANIMATION
 
     # Hide all bubbles and HUD, but keep ship and score visible
     hidden_objects = bubble_ids[:] + [time_bar_bg, time_bar_fill, sound_btn_img]
@@ -773,16 +835,17 @@ def continue_to_next_planet(planet_id=None):
         start_music()
     tick()
 
-
-
-
 # --------GAME OVER ------
+
+# Display the Game Over screen when time runs out.
+# Stops game logic and shows final score, best score, and menu/exit options.
 def show_game_over():
     global game_over_items, state, best_score
     state = GAME_OVER
     
     clear_game_over()
     
+    # Update best score if current score is higher
     if score > best_score:
         best_score = score
     
@@ -857,13 +920,14 @@ def show_game_over():
     canvas.tag_bind(exit_btn, '<Leave>', on_leave_exit)
     canvas.tag_bind(exit_txt, '<Leave>', on_leave_exit)
 
-
+# Delete all game-over overlay items from canvas
 def clear_game_over():
     global game_over_items
     for it in game_over_items:
         canvas.delete(it)
     game_over_items = []
 
+# Reset the game state and show the main menu
 def back_to_menu():
     global best_score, score
 
@@ -888,6 +952,7 @@ def exit_game():
     pygame.mixer.quit()  # stop all sounds safely
     window.destroy()
 
+# ---------- INSTRUCTIONS ----------
 def show_instructions():
     global state, menu_items
     clear_menu()
@@ -897,7 +962,7 @@ def show_instructions():
     FRAME_MARGIN = 40
     MARGIN_MM = 15
 
-    # --- OUTER FRAME ---
+    # Outer frame
     frame = canvas.create_rectangle(
         FRAME_MARGIN, FRAME_MARGIN,
         WIDTH - FRAME_MARGIN, HEIGHT - FRAME_MARGIN,
@@ -905,7 +970,7 @@ def show_instructions():
     )
     menu_items.append(frame)
 
-    # --- TITLE ---
+    # Title
     title = canvas.create_text(
         CENTER_X, FRAME_MARGIN + 30,
         text="📘 HOW TO PLAY — Spaceship Sprint",
@@ -914,7 +979,7 @@ def show_instructions():
     )
     menu_items.append(title)
 
-    # --- LEFT-ALIGNED TEXT BLOCK (NO SCROLLING) ---
+    # Left-aligned text box
     left_x = FRAME_MARGIN + 30
     y = FRAME_MARGIN + 80
     line_gap = 22
@@ -944,7 +1009,7 @@ def show_instructions():
 
         return y + section_gap
 
-    # ---- SECTIONS WITHOUT SCROLLING ----
+    # Sections
     y = add_section("GOAL", [
         "Fly through space, collect stars to increase score,",
         "collect fuel to gain extra time, and avoid meteors."
@@ -963,7 +1028,7 @@ def show_instructions():
         "☄️ Meteors: Larger meteors remove more time"
     ], y)
 
-    # --- BACK BUTTON ---
+    # Back button
     BACK_W = 100
     BACK_H = 35
 
@@ -995,7 +1060,6 @@ def show_instructions():
     canvas.tag_bind(back_txt, "<Button-1>", lambda e: show_menu())
 
 
-
 # ---------- Start / Pause / Run logic ----------
 def start_game():
     global state, time_account, score, current_planet_index
@@ -1019,7 +1083,8 @@ def start_game():
     start_music() # start background music
     tick()
 
-
+# Toggle game between paused and running state.
+# SPACE or 'P' keys trigger this function.
 def toggle_pause(event=None):
     global state
     if state == GAME_RUNNING:
@@ -1033,22 +1098,9 @@ def toggle_pause(event=None):
 canvas.bind_all('<space>', toggle_pause)
 canvas.bind_all('p', toggle_pause)
 
+# ---------- MAIN GAME LOOP (TICK) ----------
+
 TICK_MS = 50  # 50 ms per tick
-
-def update_difficulty():
-    global difficulty_level, BUBBLE_CHANCE, good_chance
-
-    # Difficulty increases every 10s
-    difficulty_level = int((start_time_account - time_account) // 10)
-
-    # Reduce good bubble chance gradually
-    good_chance = max(0.05, 0.3 - 0.05 * difficulty_level)  # min 5% good
-
-    # Increase bubble spawn frequency (smaller BUBBLE_CHANCE = more frequent)
-    BUBBLE_CHANCE = max(2, 5 - difficulty_level // 2)  # min 2
-
-
-
 
 def tick():
     global state, time_account, score, good_chance, current_planet_index
