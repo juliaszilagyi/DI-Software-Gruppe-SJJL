@@ -146,7 +146,19 @@ Das Spiel kann **pausiert** werden:
 
 ---
 
+### 10. Implementiertes Feedback nach Code Review
 
+- Implementiert:
+  - Die Schwierigkeit wurde angepasst
+  - Kollisionen oben und unten am Bildschirm wurden eingefügt, sodass man nicht unendlich nach oben oder unten fliegen kann.
+  - Der Hintergrund bewegt sich sehr langsam nach links, um den Eindruck von Bewegung zu verstärken.
+- Nicht implementiert:
+  -   Den Kollisionspunkt am vorderen Teil des Raketenbilds ändern – nicht umgesetzt wegen Zeitmangel.
+  -   Das Raumschiff auch nach links und rechts bewegbar machen – könnte in Zukunft mit Boostern implementiert werden.
+  -   Eine Gesamtübersicht der Planeten (z. B. in den Instructions) anzeigen – nicht umgesetzt, da wir den Spieler*innen ein bisschen Spannung lassen möchten, damit sie nicht wissen, welche Planeten noch kommen.
+
+
+---
 
 # -----OLD------- #
 # Bubble Popper
